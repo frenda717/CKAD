@@ -1,3 +1,92 @@
+    k api-resources <Object> |grep <Object>
+
+eg. kubectl api-resources
+Output:
+NAME                                SHORTNAMES   APIVERSION                        NAMESPACED   KIND
+bindings                                         v1                                true         Binding
+componentstatuses                   cs           v1                                false        ComponentStatus
+configmaps                          cm           v1                                true         ConfigMap
+endpoints                           ep           v1                                true         Endpoints
+events                              ev           v1                                true         Event
+limitranges                         limits       v1                                true         LimitRange
+namespaces                          ns           v1                                false        Namespace
+nodes                               no           v1                                false        Node
+persistentvolumeclaims              pvc          v1                                true         PersistentVolumeClaim
+persistentvolumes                   pv           v1                                false        PersistentVolume
+pods                                po           v1                                true         Pod
+podtemplates                                     v1                                true         PodTemplate
+replicationcontrollers              rc           v1                                true         ReplicationController
+resourcequotas                      quota        v1                                true         ResourceQuota
+secrets                                          v1                                true         Secret
+serviceaccounts                     sa           v1                                true         ServiceAccount
+services                            svc          v1                                true         Service
+mutatingwebhookconfigurations                    admissionregistration.k8s.io/v1   false        MutatingWebhookConfiguration
+validatingadmissionpolicies                      admissionregistration.k8s.io/v1   false        ValidatingAdmissionPolicy
+validatingadmissionpolicybindings                admissionregistration.k8s.io/v1   false        ValidatingAdmissionPolicyBinding
+validatingwebhookconfigurations                  admissionregistration.k8s.io/v1   false        ValidatingWebhookConfiguration
+customresourcedefinitions           crd,crds     apiextensions.k8s.io/v1           false        CustomResourceDefinition
+apiservices                                      apiregistration.k8s.io/v1         false        APIService
+controllerrevisions                              apps/v1                           true         ControllerRevision
+daemonsets                          ds           apps/v1                           true         DaemonSet
+deployments                         deploy       apps/v1                           true         Deployment
+replicasets                         rs           apps/v1                           true         ReplicaSet
+statefulsets                        sts          apps/v1                           true         StatefulSet
+selfsubjectreviews                               authentication.k8s.io/v1          false        SelfSubjectReview
+tokenreviews                                     authentication.k8s.io/v1          false        TokenReview
+localsubjectaccessreviews                        authorization.k8s.io/v1           true         LocalSubjectAccessReview
+selfsubjectaccessreviews                         authorization.k8s.io/v1           false        SelfSubjectAccessReview
+selfsubjectrulesreviews                          authorization.k8s.io/v1           false        SelfSubjectRulesReview
+subjectaccessreviews                             authorization.k8s.io/v1           false        SubjectAccessReview
+horizontalpodautoscalers            hpa          autoscaling/v2                    true         HorizontalPodAutoscaler
+cronjobs                            cj           batch/v1                          true         CronJob
+jobs                                             batch/v1                          true         Job
+certificatesigningrequests          csr          certificates.k8s.io/v1            false        CertificateSigningRequest
+leases                                           coordination.k8s.io/v1            true         Lease
+endpointslices                                   discovery.k8s.io/v1               true         EndpointSlice
+events                              ev           events.k8s.io/v1                  true         Event
+flowschemas                                      flowcontrol.apiserver.k8s.io/v1   false        FlowSchema
+prioritylevelconfigurations                      flowcontrol.apiserver.k8s.io/v1   false        PriorityLevelConfiguration
+helmchartconfigs                                 helm.cattle.io/v1                 true         HelmChartConfig
+helmcharts                                       helm.cattle.io/v1                 true         HelmChart
+addons                                           k3s.cattle.io/v1                  true         Addon
+etcdsnapshotfiles                                k3s.cattle.io/v1                  false        ETCDSnapshotFile
+nodes                                            metrics.k8s.io/v1beta1            false        NodeMetrics
+pods                                             metrics.k8s.io/v1beta1            true         PodMetrics
+ingressclasses                                   networking.k8s.io/v1              false        IngressClass
+ingresses                           ing          networking.k8s.io/v1              true         Ingress
+networkpolicies                     netpol       networking.k8s.io/v1              true         NetworkPolicy
+runtimeclasses                                   node.k8s.io/v1                    false        RuntimeClass
+poddisruptionbudgets                pdb          policy/v1                         true         PodDisruptionBudget
+clusterrolebindings                              rbac.authorization.k8s.io/v1      false        ClusterRoleBinding
+clusterroles                                     rbac.authorization.k8s.io/v1      false        ClusterRole
+rolebindings                                     rbac.authorization.k8s.io/v1      true         RoleBinding
+roles                                            rbac.authorization.k8s.io/v1      true         Role
+priorityclasses                     pc           scheduling.k8s.io/v1              false        PriorityClass
+csidrivers                                       storage.k8s.io/v1                 false        CSIDriver
+csinodes                                         storage.k8s.io/v1                 false        CSINode
+csistoragecapacities                             storage.k8s.io/v1                 true         CSIStorageCapacity
+storageclasses                      sc           storage.k8s.io/v1                 false        StorageClass
+volumeattachments                                storage.k8s.io/v1                 false        VolumeAttachment
+ingressroutes                                    traefik.containo.us/v1alpha1      true         IngressRoute
+ingressroutetcps                                 traefik.containo.us/v1alpha1      true         IngressRouteTCP
+ingressrouteudps                                 traefik.containo.us/v1alpha1      true         IngressRouteUDP
+middlewares                                      traefik.containo.us/v1alpha1      true         Middleware
+middlewaretcps                                   traefik.containo.us/v1alpha1      true         MiddlewareTCP
+serverstransports                                traefik.containo.us/v1alpha1      true         ServersTransport
+tlsoptions                                       traefik.containo.us/v1alpha1      true         TLSOption
+tlsstores                                        traefik.containo.us/v1alpha1      true         TLSStore
+traefikservices                                  traefik.containo.us/v1alpha1      true         TraefikService
+ingressroutes                                    traefik.io/v1alpha1               true         IngressRoute
+ingressroutetcps                                 traefik.io/v1alpha1               true         IngressRouteTCP
+ingressrouteudps                                 traefik.io/v1alpha1               true         IngressRouteUDP
+middlewares                                      traefik.io/v1alpha1               true         Middleware
+middlewaretcps                                   traefik.io/v1alpha1               true         MiddlewareTCP
+serverstransports                                traefik.io/v1alpha1               true         ServersTransport
+serverstransporttcps                             traefik.io/v1alpha1               true         ServersTransportTCP
+tlsoptions                                       traefik.io/v1alpha1               true         TLSOption
+tlsstores                                        traefik.io/v1alpha1               true         TLSStore
+traefikservices                                  traefik.io/v1alpha1               true         TraefikService
+
 Pod
 
 
@@ -330,10 +419,29 @@ replicaset.apps/new-replica-set scaled
 
 Deployment
 
-1. Create a new Deployment with the below attributes using your own deployment definition file.
+1. What is the image used to create the pods in the new deployment?
+    
+        k get deploy/deployments
+        k describe deployments frontend-deployment | grep  Image
+
+2. Create a new Deployment using the deployment-definition-1.yaml file located at /root/.
+
+        k create -f <yaml file> -> Check the result
+
+    controlplane ~ ➜  k create -f deployment-definition-1.yaml 
+    Error from server (BadRequest): error when creating "deployment-definition-1.yaml": deployment in version "v1" cannot be handled as a Deployment: no kind "deployment" is registered for version "apps/v1" in scheme "k8s.io/apimachinery@v1.31.0-k3s3/pkg/runtime/scheme.go:100"
+
+    controlplane ~ ✖ vim deployment-definition-1.yaml 
+
+    controlplane ~ ➜  k create -f deployment-definition-1.yaml 
+    deployment.apps/deployment-1 created
+
+3. Create a new Deployment with the below attributes using your own deployment definition file. (2 ways)
     Name: httpd-frontend;
     Replicas: 3;
     Image: httpd:2.4-alpine
+
+    a. 
 
         k create -f deploy.yaml (new definition file)
 
@@ -377,6 +485,63 @@ Deployment
     httpd-frontend   3/3     3            3           14s
     new-deployment   0/3     3            0           6m25s
 
+    b. By the given conditions, use k help to create a deployment directly by command
+
+        k create deployment/deploy --help
+        (Choose the most fitted command line from Examples column)
+        k create deploy <name> --image=<>  --replicas=<>
+    controlplane ~ ✖ k create deploy httpd-backend --image=httpd:2.4-alpine --replicas=3
+    deployment.apps/httpd-backend created
+
+
+    **CAUTION**:
+    k create deployment/deploy -h/--help 跟
+    k create deployments -h/help  的輸出結果不一樣!!!!!
+
+
+        k create deployment -h/--help:
+    controlplane ~ ✖ k create deployment -h
+    Create a deployment with the specified name.
+
+    Aliases:
+    deployment, deploy
+
+    Examples:
+    # Create a deployment named my-dep that runs the busybox image
+    kubectl create deployment my-dep --image=busybox
+    
+    # Create a deployment with a command
+    kubectl create deployment my-dep --image=busybox -- date
+    
+    # Create a deployment named my-dep that runs the nginx image with 3 replicas
+    kubectl create deployment my-dep --image=nginx --replicas=3    **output detail usage !!!**
+    
+    # Create a deployment named my-dep that runs the busybox image and expose port 5701
+    kubectl create deployment my-dep --image=busybox --port=5701
+    
+    # Create a deployment named my-dep that runs multiple containers
+    kubectl create deployment my-dep --image=busybox:latest --image=ubuntu:latest --image=nginx
+
+    Options: ......
+
+        k create deployment**s** -help :
+
+    controlplane ~ ➜  k create deployments --help
+    Create a resource from a file or from stdin.
+
+    JSON and YAML formats are accepted.
+
+    Examples:
+    # Create a pod using the data in pod.json
+    kubectl create -f ./pod.json
+    
+    # Create a pod based on the JSON passed into stdin
+    cat pod.json | kubectl create -f -      **didn't output detail usage !!!**
+    
+    # Edit the data in registry.yaml in JSON then create the resource using the edited data
+    kubectl create -f registry.yaml --edit -o json
+
+
 
 Namespace
 1. How many Namespaces exist on the system?
@@ -400,19 +565,50 @@ Namespace
 
 2. How many pods exist in the research namespace?
 
+        k get pods -h/--help
+      
+    ...
+    
+    # List all pods existing in all namespaces
+    kubectl get pods --all-namespaces
+    
         k get pods --namespace=research
+    
+    # List all deployments in namespace 'backend'
+    kubectl get deployments.apps --namespace backend
 
-   controlplane ~ ✖ kubectl get pods --namespace=research
+        k get deployments/deploy --namespace=research / --namespace research
+
+    controlplane ~ ✖ kubectl get pods --namespace=research  or -n=research
     NAME    READY   STATUS             RESTARTS       AGE
     dna-1   0/1     CrashLoopBackOff   6 (4m2s ago)   9m49s
     dna-2   0/1     CrashLoopBackOff   6 (4m2s ago)   9m49s
 
     Answer: 2
 
+    錯誤示範:
+
+    controlplane ~ ➜  kubectl get deployments.apps --namespace research 
+    No resources found in research namespace. (因為Pod 並非由 Deployment 管理，可能是直接創建的或由其他控制器管理。)
+
+
 3. Create a POD in the finance namespace.
     Use the spec given below.
     Name: redis
     Image name: redis
+
+        k create redis -h (查無結果)
+        k run redis -h 
+    Examples:
+    # Start a nginx pod
+    kubectl run nginx --image=nginx
+    ...
+
+        kubectl options (List options common to all kubectl commands )
+    
+    -n, --namespace='':
+    If present, the namespace scope for this CLI request
+    ...
 
         k run redis --image=redis -n finance
 
@@ -469,16 +665,52 @@ Namespace
 
     Answer: marketing
 
-5. Access the Blue web application using the link above your terminal!!
-From the UI you can ping other services.
 
-6. What DNS name should the Blue application use to access the database db-service in its own namespace - marketing?
+5. What DNS name should the Blue application use to access the database db-service in its own namespace - marketing?
+
+    In the same namespace: the 2 service can connet to each other by using service name directly.
+
+    You can try it in the web application UI. Use port 6379.
+    controlplane ~ ➜  k get ns
+    NAME              STATUS   AGE
+    default           Active   47m
+    dev               Active   45m
+    finance           Active   45m
+    kube-node-lease   Active   47m
+    kube-public       Active   47m
+    kube-system       Active   47m
+    manufacturing     Active   45m
+    marketing         Active   45m
+    prod              Active   45m
+    research          Active   45m
+
+    controlplane ~ ➜  k get service -n=marketing
+    NAME           TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+    blue-service   NodePort   10.43.76.105    <none>        8080:30082/TCP   45m
+    db-service     NodePort   10.43.118.230   <none>        6379:30585/TCP   45m
+
+    controlplane ~ ➜  k get svc -n=marketing
+    NAME           TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+    blue-service   NodePort   10.43.76.105    <none>        8080:30082/TCP   45m
+    db-service     NodePort   10.43.118.230   <none>        6379:30585/TCP   45m
+
+    (db-service & blue-service are under a same namespace, hence can connect to each other directly by service name & port)
+
+    Answer: db-service
+
+6. What DNS name should the Blue application use to access the database db-service in the dev namespace?
 You can try it in the web application UI. Use port 6379.
 
+To access service from different namespace, we need to directly reference the full namespace & service name
 
-Answer: db-service
+controlplane ~ ➜  k get svc -n=marketing
+NAME           TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+blue-service   NodePort   10.43.76.105    <none>        8080:30082/TCP   45m
+db-service     NodePort   10.43.118.230   <none>        6379:30585/TCP   45m
 
-7. What DNS name should the Blue application use to access the database db-service in the dev namespace?
-You can try it in the web application UI. Use port 6379.
+controlplane ~ ➜  k get svc -n=dev
+NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+db-service   ClusterIP   10.43.170.37   <none>        6379/TCP   50m
 
-Ansewr: db-service.dev.svc.cluster.local
+
+Ansewr: db-service.dev.svc.cluster.local  <service-name>.<namespace-name>.svc.cluster.local
