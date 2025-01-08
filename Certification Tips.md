@@ -262,3 +262,26 @@ Certification Tip
 
 
 
+
+2. Linux Commnad:
+
+    If you paste a block of code from the doc but the fomat did'nt change but the indentation is not automatically aligned:
+    command:
+
+        press Shift + V  then scorll down to select the columns you want by (Shift +V 的時候，屬標需要在欲選取的第一行，接著放掉後，用PgDn 鍵往下選取)
+        倘若按到數字鍵盤的dot(也就是delete鍵，將會全數刪除!)
+
+        press Shift + dot(鍵盤裡的: > 鍵)
+        >：將選中的行向右縮排。
+        <：將選中的行向左縮排 
+
+
+
+3. Tips tutor gave:
+    1) https://www.linkedin.com/pulse/my-ckad-exam-experience-atharva-chauthaiwale/
+
+    2) https://medium.com/@harioverhere/ckad-certified-kubernetes-application-developer-my-journey-3afb0901014
+
+    3) https://github.com/lucassha/CKAD-resources
+
+
