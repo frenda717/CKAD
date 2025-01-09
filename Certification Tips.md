@@ -7,6 +7,11 @@ Certification Tip
     By default (Without dry-run), as soon as the command is run, the resource will be created. If you simply want to test your command, use the: 
     
         --dry-run=client
+    
+    使用--dry-run=client 來執行debug，較果如下: 
+    controlplane ~ ➜  kubectl apply -f app.yaml --dry-run=client
+    error: error parsing app.yaml: error converting YAML to JSON: yaml: line 24: did not find expected key
+
         
     This will **not create the resource**. Instead, tell you whether the resource can be created and if your command is right.
 
@@ -261,8 +266,6 @@ Certification Tip
 
 
 
-
-
 2. Linux Commnad:
 
     If you paste a block of code from the doc but the fomat did'nt change but the indentation is not automatically aligned:
@@ -275,9 +278,107 @@ Certification Tip
         >：將選中的行向右縮排。
         <：將選中的行向左縮排 
 
+    Jump to the top or bottom of the page:
+
+        gg: jump to the top
+        G: jump to the bottom
+        M: 跳至當前畫面的中間行
+
+    Find a specific word:
+
+        /keyword + Enter: Search for keywords downward from the current cursor position (當前光標以上)
+        ?keyword + Enter: Search for keywords upward from the current cursor position (當前光標以下)
+
+        n: jump to the next keyword
+        N: jump to the previous keyword
+
+    Highlight all keywords:
+
+        /keyword + Enter: search first
+        :set hlsearch: highlight
+        :noh : remobe highlight
+    
+    Alternative keywords:
+
+        :%s/old_keyword/new_keyword/g
+
+        %: Represents the entire file
+        s: Indicates a replacement operation
+        g: Indicates global replacement, that is, replace all matching keywords in each line
 
 
-3. Tips tutor gave:
+    Ask for confimation for each keyword: 
+
+        y/n/a/q/l/^E/^Y
+    
+        Enter y: Replace the current match.
+        Enter n: Skip the current match.
+        Enter a: Replace all remaining matches.
+        Type q: Exit replace mode.
+
+        apiVersion: v1
+        kind: Pod
+        metadata:
+        creationTimestamp: "2025-01-09T02:15:44Z"
+        labels:
+            name: test
+        name: test
+        namespace: elastic-stack
+        resourceVersion: "582"
+        uid: 5f31ab29-557b-41a3-8593-ccf80714be10
+        spec:
+        containers:
+        - name: test
+            image: kodekloud/event-simulator
+            imagePullPolicy: Always
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            volumeMounts:
+            - mountPath: /log
+            name: log-volume
+            - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            name: kube-api-access-f65df
+            readOnly: true
+        - name: sidecar
+            image: kodekloud/filebeat-configured
+            volumeMounts:
+        replace with app (y/n/a/q/l/^E/^Y)? 
+        
+        5 substitutions on 5 lines  (提示總共做了哪幾個變更)    
+
+    在 Vim 中启用自动缩进：
+
+        :set ai
+    OR 直接启用 YAML 语法缩进：
+
+        :set filetype=yaml
+
+    确保使用合适的空格：
+        
+        :set tabstop=2 shiftwidth=2 expandtab
+    这将确保 YAML 文件中的缩进使用 2 个空格，而不是 Tab。
+
+1. Setting alias:
+
+        alias k="kubectl"
+        alias ka="kubectl apply -f"
+        alias ka= "kubectl apply" (設置了新的alias, 將會覆蓋原有的)
+        alias kg="kubectl get"
+        alias kd="kubectl describe"
+        alias ke="kubectl edit"
+
+    示範如下:
+    controlplane ~ ➜ alias ka= "kubectl apply" 
+    controlplane ~ ➜  ka -f app.yaml --namespace=elastic-stack
+    error: error parsing app.yaml: error converting YAML to JSON: yaml: line 24: did not find expected key    
+
+    OR
+    controlplane ~ ➜ alias ka="kubectl apply -f"
+    controlplane ~ ➜  ka app.yaml --namespace=elastic-stack
+
+
+    Tips tutor gave:
     1) https://www.linkedin.com/pulse/my-ckad-exam-experience-atharva-chauthaiwale/
 
     2) https://medium.com/@harioverhere/ckad-certified-kubernetes-application-developer-my-journey-3afb0901014
