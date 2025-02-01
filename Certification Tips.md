@@ -359,7 +359,7 @@ Certification Tip
         :set tabstop=2 shiftwidth=2 expandtab
     这将确保 YAML 文件中的缩进使用 2 个空格，而不是 Tab。
 
-1. Setting alias:
+3. Setting alias:
 
         alias k="kubectl"
         alias ka="kubectl apply -f"
@@ -377,11 +377,25 @@ Certification Tip
     controlplane ~ ➜ alias ka="kubectl apply -f"
     controlplane ~ ➜  ka app.yaml --namespace=elastic-stack
 
+    View all aliases:
+
+        alias
+        alias <alias-anme>
+            eg. alias ka, alias ke
+
+    查看alias 的來源:
+
+        grep 'alias' ~/.bashrc ~/.zshrc /etc/bashrc /etc/profile
+
+    通過grep 快速查找以上有可能存放alias 配置的位置
+
 
     Tips tutor gave:
     1) https://www.linkedin.com/pulse/my-ckad-exam-experience-atharva-chauthaiwale/
 
     2) https://medium.com/@harioverhere/ckad-certified-kubernetes-application-developer-my-journey-3afb0901014
+
+        **Resist the urge to answer the questions sequentially.**
 
     3) https://github.com/lucassha/CKAD-resources
 
