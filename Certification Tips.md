@@ -400,3 +400,282 @@ Certification Tip
     3) https://github.com/lucassha/CKAD-resources
 
 
+
+4. 官網文件找不到的終極大法:
+
+    k explain <resource> --recursive 
+    k explain <resource> --recursive |grep <colum options>
+    k explain <resource>.spec.hostpath
+
+    controlplane ~ ➜  k create -f log-volume.yaml 
+    The PersistentVolume "log-volume" is invalid: spec: Required value: must specify a volume type
+
+
+    controlplane ~ ➜  kubectl explain persistentvolume --recursive |grep -A5 hostPath
+        hostPath    <HostPathVolumeSource>
+        path      <string> -required-
+        type      <string>
+        enum: "", BlockDevice, CharDevice, Directory, ....
+        iscsi       <ISCSIPersistentVolumeSource>
+        chapAuthDiscovery <boolean>
+
+
+    controlplane ~ ➜  vim log-volume.yaml 
+
+        apiVersion: v1
+        kind: PersistentVolume
+        metadata:
+        name: log-volume
+        spec:
+            capacity:
+                storage: 1Gi
+            volumeMode: Filesystem
+            accessModes:
+                - ReadWriteMany
+            persistentVolumeReclaimPolicy: Retain
+            storageClassName: manual
+
+            hostPath: (用expain指令查詢完畢之後，變得知需hostPath下的path 為必須設置的選項)
+                path: /opt/volume/nginx
+
+
+
+    controlplane ~ ➜  k explain deploy.spec.template.spec.containers.resources --recursive
+    GROUP:      apps
+    KIND:       Deployment
+    VERSION:    v1
+
+    FIELD: resources <ResourceRequirements>
+
+
+    DESCRIPTION:
+        Compute Resources required by this container. Cannot be updated. More info:
+        https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+        ResourceRequirements describes the compute resource requirements.
+        
+    FIELDS:
+    claims        <[]ResourceClaim>
+        name        <string> -required-
+        request     <string>
+    limits        <map[string]Quantity>
+    **requests**      <map[string]Quantity>
+
+
+    controlplane ~ ✖ k explain deploy.spec.template.spec.containers.resources.requests --recursive
+    GROUP:      apps
+    KIND:       Deployment
+    VERSION:    v1
+
+    FIELD: requests <map[string]Quantity>
+
+
+    DESCRIPTION:
+        Requests describes the minimum amount of compute resources required. If
+        Requests is omitted for a container, it defaults to Limits if that is
+        explicitly specified, otherwise to an implementation-defined value. Requests
+        cannot exceed Limits. More info:
+        https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+        Quantity is a fixed-point representation of a number. It provides convenient
+        marshaling/unmarshaling in JSON and YAML, in addition to String() and
+        AsInt64() accessors.
+        
+        The serialization format is:
+        
+        ``` <quantity>        ::= <signedNumber><suffix>
+        
+            (Note that <suffix> may be empty, from the "" case in <decimalSI>.)
+        
+        <digit>           ::= 0 | 1 | ... | 9 <digits>          ::= <digit> |
+        <digit><digits> <number>          ::= <digits> | <digits>.<digits> |
+        <digits>. | .<digits> <sign>            ::= "+" | "-" <signedNumber>    ::=
+        <number> | <sign><number> <suffix>          ::= <binarySI> |
+        <decimalExponent> | <decimalSI> <binarySI>        ::= Ki | Mi | Gi | Ti | Pi
+        | Ei
+        
+            (International System of units; See:
+        http://physics.nist.gov/cuu/Units/binary.html)
+        
+        <decimalSI>       ::= m | "" | k | M | G | T | P | E
+        
+            (Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)
+        
+        <decimalExponent> ::= "e" <signedNumber> | "E" <signedNumber> ```
+        
+        No matter which of the three exponent forms is used, no quantity may
+        represent a number greater than 2^63-1 in magnitude, nor may it have more
+        than 3 decimal places. Numbers larger or more precise will be capped or
+        rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the
+        future if we require larger or smaller quantities.
+        
+        When a Quantity is parsed from a string, it will remember the type of suffix
+        it had, and will use the same type again when it is serialized.
+        
+        Before serializing, Quantity will be put in "canonical form". This means
+        that Exponent/suffix will be adjusted up or down (with a corresponding
+        increase or decrease in Mantissa) such that:
+        
+        - No precision is lost - No fractional digits will be emitted - The exponent
+        (or suffix) is as large as possible.
+        
+        The sign will be omitted unless the number is negative.
+        
+        Examples:
+        
+        - 1.5 will be serialized as "1500m" - 1.5Gi will be serialized as "1536Mi"
+        
+        Note that the quantity will NEVER be internally represented by a floating
+        point number. That is the whole point of this exercise.
+        
+        Non-canonical values will still parse as long as they are well formed, but
+        will be re-emitted in their canonical form. (So always use canonical form,
+        or don't diff.)
+        
+        This format is intended to make it difficult to use these numbers without
+        writing some sort of special handling code in the hopes that that will cause
+        implementors to also use a fixed point implementation.
+
+5. --restart=Never 建立debug pod:
+   
+    如下，倘若pod 因不明原因導致Error或是崩潰 CrashLoopBackOff，可建立debug pod 來進入容器內，進一步排查問題。
+    可以嘗試以 **--restart=Never** 的方式 **手動啟動一個新的 Debug Pod**。
+
+    controlplane ~ ➜  kubectl exec -it time-check -n dvl1987 -- env | grep TIME_FREQ
+    error: Internal error occurred: unable to upgrade connection: container not found ("time-check")
+
+
+    建立debug pod 來排查原因:
+            
+    kubectl run debug-shell --rm -i -t --image=busybox --restart=Never --namespace=dvl1987 -- sh
+
+    進入容器 intit mode:
+    controlplane ~ ✖ kubectl run debug-shell --rm -i -t --image=busybox --restart=Never --namespace=dvl1987 -- sh
+    If you don't see a command prompt, try pressing enter.
+    / # env | grep TIME_FREQ (檢查pod是否正確傳遞環境變量)
+    / # 
+
+
+    倘若此方法有限，則使用 kubectl logs 來查看崩潰日誌
+    
+    kubectl logs time-check -n dvl1987
+
+6. 適合使用k replace的場合
+    controlplane ~ ✖ k apply -f redis-deploy.yaml 
+    Warning: resource deployments/redis is missing the kubectl.kubernetes.io/last-applied-configuration annotation which is required by kubectl apply. kubectl apply should only be used on resources created declaratively by either kubectl create --save-config or kubectl apply. The missing annotation will be patched automatically.
+    Error from server (Conflict): error when applying patch:
+    {"metadata":{"annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"creationTimestamp\":\"2025-02-05T22:47:31Z\",\"generation\":1,\"labels\":{\"app\":\"redis\"},\"name\":\"redis\",\"namespace\":\"default\",\"resourceVersion\":\"5748\",\"uid\":\"8137484f-04b9-47f1-9817-400d439cbe15\"},\"spec\":{\"progressDeadlineSeconds\":600,\"replicas\":1,\"revisionHistoryLimit\":10,\"selector\":{\"matchLabels\":{\"app\":\"redis\"}},\"strategy\":{\"rollingUpdate\":{\"maxSurge\":\"25%\",\"maxUnavailable\":\"25%\"},\"type\":\"RollingUpdate\"},\"template\":{\"metadata\":{\"creationTimestamp\":null,\"labels\":{\"app\":\"redis\"}},\"spec\":{\"containers\":[{\"image\":\"redis:alpine\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"redis\",\"ports\":[{\"containerPort\":6379}],\"resources\":{\"requests\":{\"cpu\":\"0.2\"}},\"terminationMessagePath\":\"/dev/termination-log\",\"terminationMessagePolicy\":\"File\",\"volumeMounts\":[{\"mountPath\":\"/redis-master-data\",\"name\":\"data\"}]}],\"dnsPolicy\":\"ClusterFirst\",\"restartPolicy\":\"Always\",\"schedulerName\":\"default-scheduler\",\"securityContext\":{},\"terminationGracePeriodSeconds\":30,\"volumes\":null}}},\"status\":{}}\n"},"resourceVersion":"5748"},"spec":{"template":{"spec":{"$setElementOrder/containers":[{"name":"redis"}],"containers":[{"name":"redis","ports":[{"containerPort":6379}],"resources":{"requests":{"cpu":"0.2"}},"volumeMounts":[{"mountPath":"/redis-master-data","name":"data"}]}],"volumes":null}}}}
+    to:
+    Resource: "apps/v1, Resource=deployments", GroupVersionKind: "apps/v1, Kind=Deployment"
+    Name: "redis", Namespace: "default"
+    for: "redis-deploy.yaml": error when patching "redis-deploy.yaml": Operation cannot be fulfilled on deployments.apps "redis": the object has been modified; please apply your changes to the latest version and try again
+
+
+    **什麼時候需要更新 Deployment 卻不刪除 Pod？**
+    通常，當我們更新 Kubernetes **Deployment** 時，Pod 會根據 **Rolling Update** 策略逐步重新啟動。但某些情況下，我們希望 **只更新 Deployment 定義，而不影響現有的 Pod**。這時可以使用 `kubectl replace` 來 **更新 Deployment 本身，但不立即影響 Pod**。
+
+    ---
+
+    **✅ 什麼情況下需要這樣做？**
+    **1️⃣ 更新 Deployment Metadata，但不影響 Pod**
+    如果你只想更新 Deployment 的 **標籤 (Labels)**、**註釋 (Annotations)** 或 **其他不影響 Pod 的設定**，你可以使用：
+    ```sh
+    kubectl replace -f redis-deploy.yaml
+    ```
+    這樣 **Deployment 的 metadata 會更新，但不會觸發新的 Pod 創建或刪除**。
+
+    📌 適用情境**
+    - 增加 **Labels** 來更好地管理 Deployment：
+        ```yaml
+        metadata:
+        labels:
+            environment: production
+        ```
+    - 增加或修改 **Annotations**，例如增加監控標籤：
+        ```yaml
+        metadata:
+        annotations:
+            monitoring: "enabled"
+        ```
+    - 調整 **Rolling Update** 策略：
+        ```yaml
+        strategy:
+        type: RollingUpdate
+        rollingUpdate:
+            maxSurge: "50%"
+            maxUnavailable: "25%"
+        ```
+        → **Pod 仍然保持不變，只有 Deployment 設定更新。**
+
+    ---
+
+    **2️⃣ 修正 `Deployment` 的 YAML 配置，但不影響現有 Pod**
+    如果你發現 `Deployment` YAML **有錯誤**，但 **現有的 Pod 運作正常**，你可能只想修正 YAML，而不想讓 Kubernetes 重新建立 Pod。
+
+    **📌 例如**
+    - 你不小心 **漏掉 `kubectl.kubernetes.io/last-applied-configuration` 註解**，導致 `kubectl apply` 失敗：
+        ```yaml
+        metadata:
+        annotations:
+            kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"apps/v1", ... }'
+        ```
+        **解決方法**
+        ```sh
+        kubectl replace -f redis-deploy.yaml
+        ```
+        **Pod 不會受到影響，但 `Deployment` 會更新。**
+
+    ---
+
+    **3️⃣ 避免影響線上業務**
+    如果你有一個正在運行的 `Deployment`，但希望暫時修改 Deployment 設定，**又不想讓 Pod 重新啟動**（例如高流量時段），可以用 `kubectl replace` 來 **更新 `Deployment` 設定，然後等到低流量時再進行 `kubectl rollout restart`**。
+
+    **📌 適用情境**
+    - 線上環境的 **高峰時段**，不希望影響業務。
+    - **只想先修改 Deployment，稍後再重啟 Pod**。
+
+    **流程**
+    1. **使用 `kubectl replace` 更新 Deployment，但不影響現有 Pod**
+        ```sh
+        kubectl replace -f redis-deploy.yaml
+        ```
+    2. **等到低流量時，手動滾動更新**
+        ```sh
+        kubectl rollout restart deployment redis
+        ```
+
+    這樣可以 **分開「更新 Deployment」和「重啟 Pod」的時間點，避免影響業務**。
+
+    ---
+
+    **❌ 什麼時候** `kubectl replace` **不適用？**
+    - **當你需要立刻更新 Pod（例如改變環境變數或 Image）**
+        - `kubectl replace` **不會觸發 Rolling Update**，Pod 仍然保持舊的狀態。
+        - 如果你改變了 `image` 或 `env` 但只使用 `kubectl replace`，Pod **不會自動重新啟動**。
+        - **正確做法**：
+        ```sh
+        kubectl apply -f redis-deploy.yaml
+        ```
+        - 或者手動重啟：
+        ```sh
+        kubectl rollout restart deployment redis
+        ```
+
+    - **當你想觸發滾動更新**
+        - `kubectl replace` **不會觸發 Rolling Update**，但 `kubectl apply` 會根據變更的內容來決定是否需要滾動更新。
+        - **如果你希望 Pod 立即更新，應該用 `kubectl apply` 或 `kubectl set image`。**
+
+    ---
+
+    **📌 總結**
+    | 指令 | 更新 Deployment | 影響 Pod |
+    |------|--------------|---------|
+    | `kubectl apply` | 是 | 會觸發 Rolling Update |
+    | `kubectl replace` | 是 | **不影響** Pod |
+    | `kubectl edit deployment` | 是 | 可能影響 Pod（取決於變更內容） |
+    | `kubectl rollout restart` | 否 | 重新啟動所有 Pod |
+
+    **適合使用 `kubectl replace` 的情境**
+    ✅ 更新 **標籤 (Labels)**、**註釋 (Annotations)** 或 **策略 (Strategy)**，但不希望影響 Pod。  
+    ✅ 修正 **Deployment 的 YAML 格式錯誤**，但現有 Pod 是健康的。  
+    ✅ **高流量時段**，先更新 `Deployment`，稍後再手動重啟 Pod。
+
+    你可以試試 **`kubectl replace -f redis-deploy.yaml`**，然後執行 `kubectl get pods` 看看 Pod 是否仍然保持不變！ 🚀
