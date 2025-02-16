@@ -1,6 +1,168 @@
 ### 01. Application Deployment (20%)
 
-1. 
+  1. CronJob、Job Limit、BackoffLimit
+  
+      Create a cronjob called dice that runs every one minute. Use the Pod template located at /root/throw-a-dice. The image throw-dice randomly returns a value between 1 and 6. The result of 6 is considered success and all others are failure.
+      The job should be **non-parallel** and **complete the task once**. Use a backoffLimit of 25.
+      
+      If the task is not completed within 20 seconds the job should fail and pods should be terminated.
+      You don't have to wait for the job completion. As long as the cronjob has been created as per the requirements.
+
+      我的配置:
+
+      controlplane ~ ➜  ls
+      dice-conjob.yaml  dice-job.yaml  throw-a-dice
+
+      controlplane ~ ➜  cat throw-a-dice/throw-a-dice.yaml (查看當前pod 設置)
+        
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: throw-dice-pod
+        spec:
+          containers: # 根據doc: "For a non-parallel Job, you can leave both .spec.completions and .spec.parallelism unset. When both are unset, both are defaulted to 1" ，故此處不設置parallelism 跟completions，默認為1。
+          -  image: kodekloud/throw-dice (檢查Imgage)
+            name: throw-dice
+          restartPolicy: Never
+
+      controlplane ~ ➜  cat dice-job.yaml
+        
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: dice-job
+        spec:
+          template:
+            spec:
+              restartPolicy: Never # required for the feature
+              containers:
+              - name: throw-dice
+                image: kodekloud/throw-dice
+          backoffLimit: 25
+          activeDeadlineSeconds: 20
+
+
+      controlplane ~ ➜  k get job
+      NAME       STATUS     COMPLETIONS   DURATION   AGE
+      dice-job   Complete   1/1           4s         7m38s
+
+      但是!!!目前建立的 dice-job.yaml 是一個 Job，但題目要求 CronJob，所以我們需要修改 apiVersion 和 kind：
+
+      Job 只會執行一次
+      CronJob 則可以按照排程執行（如題目要求的「每分鐘一次」）
+
+
+      根據job的配置，將template spec裡面的內容貼到cronjob配置文件中:
+
+        apiVersion: batch/v1
+        kind: CronJob
+        metadata:
+          name: dice
+        spec:
+          schedule: "* * * * *"
+          jobTemplate:
+            spec:
+              template:
+                spec:
+                  restartPolicy: Never # required for the feature
+                  containers:
+                  - name: throw-dice
+                    image: kodekloud/throw-dice
+              backoffLimit: 25
+              activeDeadlineSeconds: 20 (使用k explain cronjob.spec.jobTemplate.spec.template --recursive查看是否有此配置項)
+
+      controlplane ~ ➜  vim dice-conjob.yaml 
+      
+      OR
+      
+      controlplane ~ ➜  kubectl create cronjob dice --image=kodekloud/throw-dice --schedule="*/1 * * * *"
+      cronjob.batch/dice created
+
+      controlplane ~ ➜  k edit cronjobs.batch 
+        spec:
+          concurrencyPolicy: Allow
+          failedJobsHistoryLimit: 1
+          jobTemplate:
+            metadata:
+              creationTimestamp: null
+              name: dice
+            spec:
+              activeDeadlineSeconds: 20
+              backoffLimit: 25
+              template:
+                metadata:
+                  creationTimestamp: null
+                spec:
+                  containers:
+                  - image: kodekloud/throw-dice
+                    imagePullPolicy: Always
+                    name: dice
+                    resources: {}
+                    terminationMessagePath: /dev/termination-log
+                    terminationMessagePolicy: File
+                  dnsPolicy: ClusterFirst
+                  restartPolicy: OnFailure
+                  schedulerName: default-scheduler
+                  securityContext: {}
+                  terminationGracePeriodSeconds: 30
+          schedule: '*/1 * * * *'
+
+      cronjob.batch/dice edited
+
+      controlplane ~ ➜  k get job --watch
+      NAME            STATUS     COMPLETIONS   DURATION   AGE
+      dice-28981055   Complete   1/1           5s         97s
+      dice-28981056   Complete   1/1           18s        37s
+      dice-28981057   Running    0/1                      0s
+      dice-28981057   Running    0/1           0s         0s
+      dice-28981057   Running    0/1           3s         3s
+      dice-28981057   Complete   1/1           3s         3s
+
+      controlplane ~ ➜  k create -f  dice-conjob.yaml 
+      cronjob.batch/dice created
+
+      controlplane ~ ➜  k get cronjobs 
+      NAME   SCHEDULE    TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+      dice   * * * * *   <none>     False     0        <none>          4s
+
+
+      controlplane ~ ✖ kubectl get cronjobs --watch
+      NAME   SCHEDULE    TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+      dice   * * * * *   <none>     False     0        48s             90s
+      dice   * * * * *   <none>     False     1        0s              102s
+      dice   * * * * *   <none>     False     0        4s              106s
+
+      開另一個分頁，觀察pod
+
+      controlplane ~ ➜  **kubectl get pods --watch**
+      NAME                  READY   STATUS      RESTARTS   AGE
+      dev-pod-dind-878516   3/3     Running     0          25m
+      dice-28980667-9k4l2   0/1     Error       0          67s
+      dice-28980667-jj27l   0/1     Completed   0          56s
+      dice-28980668-tb9gb   0/1     Completed   0          7s
+      dice-job-s88jn        0/1     Completed   0          12m
+      pod-xyz1123           1/1     Running     0          25m
+      webapp-color          1/1     Running     0          25m
+
+      CronJob 會根據 schedule 自動產生 Job，然後 Job 負責執行具體的 Pod。故檢查job是否被建立:
+
+      controlplane ~ ➜  **kubectl get jobs --watch**
+      NAME            STATUS     COMPLETIONS   DURATION   AGE
+      dice-28980667   Complete   1/1           15s        3m42s
+      dice-28980668   Complete   1/1           4s         2m42s
+      dice-28980669   Complete   1/1           15s        102s
+      dice-28980670   Failed     0/1           42s        42s
+      dice-job        Complete   1/1           4s         14m
+
+
+      controlplane ~ ✖ k get jobs
+      NAME            STATUS     COMPLETIONS   DURATION   AGE
+      dice-28980667   Complete   1/1           15s        2m29s
+      dice-28980668   Complete   1/1           4s         89s
+      dice-28980669   Complete   1/1           15s        29s
+      dice-job        Complete   1/1           4s         13m
+
+
 
 ### 02. Application Environment, Configuration and Security (25%)  
 
@@ -373,6 +535,309 @@
 
 
 
+3. Secret Volume + Node Scheduling
+    
+    Create a pod called my-busybox in the dev2406 namespace using the busybox image. The container should be called secret and should sleep for 3600 seconds.
+    The container should mount a read-only secret volume called secret-volume at the path /etc/secret-volume. The secret being mounted has already been created for you and is called dotfile-secret.
+    Make sure that the pod is scheduled on controlplane and no other node in the cluster.
+
+    我的配置:
+    
+    k run my-busybox -n dev2406 --iamge=busybox -o yaml > my-busybox-pod.yaml
+
+    vim my-busybox-pod.yaml
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: **beta.kubernetes.io/arch** # 此處配置錯誤!!! 
+                operator: **In** # 錯誤
+                values: 
+                - **amd64** # 錯誤
+        containers:
+          - image: busybox
+          imagePullPolicy: Always
+          name: secret
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          command: ["/bin/sh","-c","sleep 3600"]
+          volumeMounts:
+          - mountPath: /etc/secret-volume
+            name: secret-vol
+            readOnly: true
+        volumes:
+          - name: secret-vol
+            secret:
+              secretName: dotfile-secret
+        tolerations:
+          - key: **"beta.kubernetes.io/arch"** # 配置錯誤!
+            operator: "Exists"
+            effect: "NoSchedule"
+
+
+    controlplane ~ ➜  k describe node controlplane 
+    Name:               controlplane
+    Roles:              control-plane
+    **Labels**:         beta.kubernetes.io/arch=amd64
+                        beta.kubernetes.io/os=linux
+                        kubernetes.io/arch=amd64
+                        kubernetes.io/hostname=controlplane
+                        kubernetes.io/os=linux
+                        node-role.kubernetes.io/control-plane=
+                        node.kubernetes.io/exclude-from-external-load-balancers=
+    
+    controlplane ~ ➜  vim my-buxybox.yaml 
+
+    controlplane ~ ➜  k delete pod my-busybox -n dev2406 --force
+    Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+    pod "my-busybox" force deleted
+
+    controlplane ~ ➜  k create -f  my-buxybox.yaml 
+    pod/my-busybox created
+
+    controlplane ~ ➜  k get pod -n dev2406
+    NAME          READY   STATUS    RESTARTS   AGE
+    my-busybox    1/1     Running   0          3s
+    nginx2406     1/1     Running   0          35m
+    pod-var2016   1/1     Running   0          35m
+
+    controlplane ~ ✖ k describe pod -n dev2406 my-busybox |grep -i "toleration"
+    Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+
+    controlplane ~ ➜  k describe nodes controlplane |grep -i "taints"
+    Taints:             <none>
+
+    controlplane ~ ➜  k taint node controlplane beta.kubernetes.io/arch=amd64:NoSchedule
+
+    controlplane ~ ✖ k describe node controlplane |grep -i "taint"
+    Taints:             beta.kubernetes.io/arch=amd64:NoSchedule
+
+    
+    驗證my-busybox是否運行在controlplane節點:
+    controlplane ~ ➜  k get pod my-busybox -n dev2406 -o wide
+    NAME         READY   STATUS    RESTARTS   AGE   IP            NODE     NOMINATED NODE   READINESS GATES
+    my-busybox   1/1     Running   0          70s   172.17.1.15   **node01**   <none>           <none>
+    (失敗)
+
+
+    修正後的配置:
+
+    (重新檢查label)
+    controlplane ~ ➜  kubectl get nodes --show-labels
+    NAME           STATUS   ROLES           AGE   VERSION   LABELS
+    controlplane   Ready    control-plane   32m   v1.31.0   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/arch=amd64,**kubernetes.io/hostname=controlplane**,kubernetes.io/os=linux,**node-role.kubernetes.io/control-plane=**,node.kubernetes.io/exclude-from-external-load-balancers=
+    node01         Ready    <none>          31m   v1.31.0   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/arch=amd64,kubernetes.io/hostname=node01,kubernetes.io/os=linux
+
+
+    controlplane ~ ➜  vim my-buxybox.yaml 
+
+    controlplane ~ ➜  k create -f  my-buxybox.yaml 
+    pod/my-busybox created
+
+    controlplane ~ ➜  k get pod my-busybox -n dev2406 -o wide
+    NAME         READY   STATUS    RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
+    my-busybox   0/1     Pending   0          12s   <none>   <none>   <none>           <none>
+
+
+    controlplane ~ ➜  cat my-buxybox.yaml 
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: my-busybox
+      namespace: dev2406
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: **"kubernetes.io/hostname"**
+                operator: In
+                values:
+                - **controlplane**
+      containers:
+      - image: busybox
+        imagePullPolicy: Always
+        name: secret
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        command: ["/bin/sh","-c","sleep 3600"]
+        volumeMounts:
+        - mountPath: /etc/secret-volume
+          name: secret-vol
+          readOnly: true
+      volumes:
+        - name: secret-vol
+          secret:
+            secretName: dotfile-secret
+      tolerations:
+        - key: **"kubernetes.io/hostname"**
+          operator: Exists
+          effect: NoSchedule
+
+    controlplane ~ ✖ kubectl taint node controlplane beta.kubernetes.io/arch=amd64:NoSchedule-
+    node/controlplane untainted 刪除taint
+
+    controlplane ~ ✖ kubectl taint node controlplane kubernetes.io/hostname=controlplane:NoSchedule
+    node/controlplane tainted
+
+    controlplane ~ ➜  k describe node controlplane |grep -i "taint"
+    Taints:             kubernetes.io/hostname=controlplane:NoSchedule
+
+
+    重新驗證:
+    controlplane ~ ➜  k get pod my-busybox -n dev2406 -o wide
+    NAME         READY   STATUS    RESTARTS   AGE     IP           NODE           NOMINATED NODE   READINESS GATES
+    my-busybox   1/1     Running   0          6m46s   172.17.0.6   controlplane   <none>           <none>
+
+
+    卻發現仍有大量的pod 運行在controlplane上!!!!
+    controlplane ~ ➜  kubectl get pods -A -o wide | grep controlplane
+    default         nginx                                       0/1     ContainerCreating   0          34m   <none>            controlplane   <none>           <none>
+    dev2406         my-busybox                                  1/1     Running             0          11m   172.17.0.6        controlplane   <none>           <none>
+    ingress-nginx   ingress-nginx-admission-patch-l7nfk         0/1     Completed           1          38m   172.17.0.5        controlplane   <none>           <none>
+    kube-system     calico-kube-controllers-5d7d9cdfd8-sbfcz    1/1     Running             0          43m   172.17.0.2        controlplane   <none>           <none>
+    kube-system     canal-5nkrt                                 2/2     Running             0          43m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     coredns-77d6fd4654-fjvc7                    1/1     Running             0          43m   172.17.0.3        controlplane   <none>           <none>
+    kube-system     coredns-77d6fd4654-sj7w5                    1/1     Running             0          43m   172.17.0.4        controlplane   <none>           <none>
+    kube-system     etcd-controlplane                           1/1     Running             0          43m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     kube-apiserver-controlplane                 1/1     Running             0          43m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     kube-controller-manager-controlplane        1/1     Running             0          43m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     kube-proxy-dk842                            1/1     Running             0          43m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     kube-scheduler-controlplane                 1/1     Running             0          43m   192.168.231.151   controlplane   <none>           <none>
+
+    ❌ 你的 Toleration 設置為什麼無法讓其他 Pod 轉移？
+    🔹 Toleration 的作用
+    Toleration 只會影響 Pod 的調度過程，它不會影響已經運行的 Pod，也不會強制 Pod 轉移。
+
+    🔹 Taint 的作用
+    如果你想讓 controlplane 只允許 my-busybox 運行，而其他 Pod 轉移到其他節點，你需要：
+
+    設定一個更嚴格的 Taint，讓 controlplane 只允許 my-busybox 調度。
+    讓其他 Pod 不能容忍這個 Taint，這樣 Kubernetes 會「驅逐」它們到其他節點。    
+
+
+    controlplane ~ ➜  kubectl taint nodes controlplane kubernetes.io/hostname:NoSchedule-
+    node/controlplane untainted
+
+    controlplane ~ ➜  kubectl taint nodes controlplane only-my-busybox=true:NoSchedule
+    node/controlplane tainted
+
+    controlplane ~ ➜  vim my-buxybox.yaml 
+
+    controlplane ~ ➜  k delete pod my-busybox --force
+    Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+    Error from server (NotFound): pods "my-busybox" not found
+
+    controlplane ~ ✖ k delete pod my-busybox -n dev2406 --force
+    Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+    pod "my-busybox" force deleted
+
+    controlplane ~ ➜  k create -f  my-buxybox.yaml 
+    pod/my-busybox created
+
+    controlplane ~ ➜  k get pod  -n dev2406 -o wide
+    NAME          READY   STATUS    RESTARTS   AGE   IP           NODE           NOMINATED NODE   READINESS GATES
+    my-busybox    1/1     Running   0          5s    172.17.0.7   controlplane   <none>           <none>
+    pod-var2016   1/1     Running   0          44m   172.17.1.9   node01         <none>           <none>
+
+    controlplane ~ ➜  kubectl get pods -A -o wide | grep controlplane
+    default         nginx                                       0/1     ContainerCreating   0          39m   <none>            controlplane   <none>           <none>
+    dev2406         my-busybox                                  1/1     Running             0          14s   172.17.0.7        controlplane   <none>           <none>
+    ingress-nginx   ingress-nginx-admission-patch-l7nfk         0/1     Completed           1          44m   172.17.0.5        controlplane   <none>           <none>
+    kube-system     calico-kube-controllers-5d7d9cdfd8-sbfcz    1/1     Running             0          48m   172.17.0.2        controlplane   <none>           <none>
+    kube-system     canal-5nkrt                                 2/2     Running             0          48m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     coredns-77d6fd4654-fjvc7                    1/1     Running             0          48m   172.17.0.3        controlplane   <none>           <none>
+    kube-system     coredns-77d6fd4654-sj7w5                    1/1     Running             0          48m   172.17.0.4        controlplane   <none>           <none>
+    kube-system     etcd-controlplane                           1/1     Running             0          48m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     kube-apiserver-controlplane                 1/1     Running             0          48m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     kube-controller-manager-controlplane        1/1     Running             0          48m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     kube-proxy-dk842                            1/1     Running             0          48m   192.168.231.151   controlplane   <none>           <none>
+    kube-system     kube-scheduler-controlplane                 1/1     Running             0          48m   192.168.231.151   controlplane   <none>           <none>
+
+    (原本的pod卻沒有轉移)
+
+    如何強制將現有的 Pod 轉移？
+    如果你希望 controlplane 上的 kube-system 內建 Pod 和其他 Pod 轉移到其他節點，你需要 使用 NoExecute Taint，這樣：
+
+    Kubernetes 會立刻驅逐 (evict) 不符合條件的 Pod。
+    只有具備 Toleration 的 Pod（如 my-busybox）能夠存活在 controlplane。
+    🔹 1️⃣ 移除舊的 NoSchedule Taint
+    先刪除原本的 NoSchedule Taint：
+
+    kubectl taint nodes controlplane only-my-busybox=true:NoSchedule-
+
+    🔹 2️⃣ 設置 NoExecute Taint（會強制驅逐不符合的 Pod）
+    kubectl taint nodes controlplane only-my-busybox=true:NoExecute
+
+    NoExecute 會強制驅逐所有沒有 Toleration 的 Pod。
+    🔹 3️⃣ 確保 my-busybox 允許 NoExecute
+    確保 my-busybox.yaml 允許 NoExecute，否則它也會被驅逐：
+
+
+    tolerations:
+      - key: "only-my-busybox"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"
+
+
+    🔹 4️⃣ 刪除並重新建立 my-busybox
+    刪除舊的 Pod，並用新的 Toleration 重新創建：
+
+    kubectl delete pod my-busybox -n dev2406 --force
+    kubectl apply -f my-busybox.yaml
+
+    驗證是否成功
+    1️⃣ 檢查 controlplane 是否還有其他 Pod
+
+    kubectl get pods -A -o wide | grep controlplane
+
+    2️⃣ 檢查 Taint 是否生效
+
+    kubectl describe node controlplane | grep -i "Taints"
+
+
+
+    Solution:
+
+    "Make sure that the pod is scheduled on controlplane and no other node in the cluster": 
+    這個 Pod 必須運行在 controlplane 節點上，不能被 Kubernetes 排程到其他 Worker 節點。
+    通常可以透過 Node Selector、Node Affinity 或 Taints & Tolerations 來強制 Pod 只能運行在特定節點上
+    (解答使用node selector)
+
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        creationTimestamp: null
+        labels:
+          run: my-busybox
+        name: my-busybox
+        namespace: dev2406
+      spec:
+        volumes:
+        - name: secret-volume
+          secret:
+            secretName: dotfile-secret
+        nodeSelector:
+          kubernetes.io/hostname: controlplane
+        containers:
+        - command:
+          - sleep
+          args:
+          - "3600"
+          image: busybox
+          name: secret
+          volumeMounts:
+          - name: secret-volume
+            readOnly: true
+            mountPath: "/etc/secret-volume"
+
+
 ### 03. Application Design and Build (20%)
 
 1. Deployment + Rolling Update + Rollback 
@@ -626,7 +1091,431 @@
               requests:
                 cpu: "0.2"
 
+
 ### 04. Application Observability and Maintenance (15%)
+1. A pod called dev-pod-dind-878516 has been deployed in the default namespace. Inspect the logs for the container called log-x and redirect the warnings to /opt/dind-878516_logs.txt on the controlplane node
+
+    我的配置:
+
+    step1 檢查pod日誌:
+    controlplane ~ ✖ k logs dev-pod-dind-878516
+    Defaulted container "engine-x" out of: engine-x, agent-x, log-x
+    /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+    /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+    /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+    10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+    10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+    /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+    /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+    /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+    /docker-entrypoint.sh: Configuration complete; ready for start up
+    2025/02/07 14:55:51 [notice] 1#1: using the "epoll" event method
+    2025/02/07 14:55:51 [notice] 1#1: nginx/1.27.4
+    2025/02/07 14:55:51 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14) 
+    2025/02/07 14:55:51 [notice] 1#1: OS: Linux 5.15.0-1075-gcp
+    2025/02/07 14:55:51 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+    2025/02/07 14:55:51 [notice] 1#1: start worker processes
+    2025/02/07 14:55:51 [notice] 1#1: start worker process 80
+    ...
+
+    
+    倘若pod日誌無法查看，則需要進入到容器內:
+    k exec -it pod dev-pod-dind-878516 -c log-x   
+    k exec -it dev-pod-dind-878516 -c log-x -- /bin/sh(進入log-x容器內)
+    cat /path/to/logs |grep -i "warn"
+
+    step2 警告訊息的格式包含關鍵字 "WARNING" 或 "WARN":
+    kubectl logs dev-pod-dind-878516 -c log-x -n default | grep -i "warn"
+
+    controlplane ~ ➜  kubectl logs dev-pod-dind-878516 -c log-x -n default | grep -i "warn"
+    [2025-02-07 14:56:28,693] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:31,697] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+    [2025-02-07 14:56:33,699] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:38,707] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:39,708] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+    [2025-02-07 14:56:43,713] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:47,719] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+    [2025-02-07 14:56:48,720] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:53,726] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:55,728] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+    [2025-02-07 14:56:58,731] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:57:03,736] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:57:03,736] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+    [2025-02-07 14:57:08,740] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:57:11,744] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+    [2025-02-07 14:57:13,747] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED 
+
+
+    step3: 將警告訊息存入 /opt/dind-878516_logs.txt
+    ~~kubectl logs dev-pod-dind-878516 -c log-x -n default | grep -i "warn" | kubectl exec -it controlplane -- bash -c "cat > /opt/dind-878516_logs.txt"~~
+
+    (以上顯示錯誤，)
+
+    改先把log拷貝到本地文件，再將log文件內容寫入container:
+    controlplane ~ ➜  kubectl exec dev-pod-dind-878516 -c log-x -- mkdir /opt;touch /opt/dind-878516_logs.txt  
+
+    controlplane ~ ✖ k cp log-x.txt dev-pod-dind-878516:/opt/dind-878516_logs.txt -c log-x
+
+    controlplane ~ ✖ k exec -it dev-pod-dind-878516 -c log-x -- sh
+    / # ls
+    bin                 lib                 proc                sys
+    dev                 log                 root                tmp
+    etc                 media               run                 usr
+    event-simulator.py  mnt                 sbin                var
+    home                opt                 srv
+    / # cat opt/dind-878516_logs.txt 
+    [2025-02-07 14:56:28,693] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:31,697] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+    [2025-02-07 14:56:33,699] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    ...
+
+
+
+    Solution:
+    kubectl logs dev-pod-dind-878516 -c log-x | grep WARNING > /opt/dind-878516_logs.txt
+
+    controlplane ~ ➜  kubectl logs dev-pod-dind-878516 -c log-x | grep WARNING > /opt/dind-878516_logs.txt
+
+    controlplane ~ ➜  cat /opt/dind-878516_logs.txt 
+    [2025-02-07 14:56:28,693] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:31,697] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+    [2025-02-07 14:56:33,699] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:38,707] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+    [2025-02-07 14:56:39,708] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+
+2. Troubleshooting + Liveness Probe
+  
+    We have deployed a few pods in this cluster in various namespaces. Inspect them and identify the pod which is not in a Ready state. Troubleshoot and fix the issue.
+    Next, add a check to restart the container on the same pod if the command ls /var/www/html/file_check fails. This check should **start after a delay of 10 seconds** and **run every 60 seconds**.
+    You may delete and recreate the object. Ignore the warnings from the pro
+
+    Hint: 找出
+    **READY 欄位不是 1/1**
+    **STATUS 欄位是 CrashLoopBackOff、Pending、Error**、~~Completed~~ 等
+
+    controlplane ~ ✖ k get pod -A
+    NAMESPACE       NAME                                        READY   STATUS      RESTARTS   AGE
+    default         pod-xyz1123                                 1/1     Running     0          29m
+    default         webapp-color                                1/1     Running     0          29m
+    dev0403         nginx0403                                   1/1     Running     0          29m
+    dev0403         pod-dar85                                   1/1     Running     0          29m
+    **dev1401       nginx1401                                   0/1     Running     0          29m**
+    dev1401         pod-kab87                                   1/1     Running     0          29m
+    dev2406         nginx2406                                   1/1     Running     0          29m
+    dev2406         pod-var2016                                 1/1     Running     0          29m
+    e-commerce      e-com-1123                                  1/1     Running     0          29m
+    **ingress-nginx ingress-nginx-admission-create-9cdqh        0/1     Completed   0          28m**
+    **ingress-ngin  ingress-nginx-admission-patch-nq7xg         0/1     Completed   1          28m**
+    ingress-nginx   ingress-nginx-controller-7fb4f97b75-gcqj5   1/1     Running     0          28m
+    kube-system     calico-kube-controllers-5d7d9cdfd8-n6cns    1/1     Running     0          34m
+    kube-system     canal-6srw7                                 2/2     Running     0          34m
+    kube-system     canal-dwc2k                                 2/2     Running     0          34m
+    kube-system     coredns-77d6fd4654-7lvks                    1/1     Running     0          34m
+    kube-system     coredns-77d6fd4654-qhgbf                    1/1     Running     0          34m
+    kube-system     etcd-controlplane                           1/1     Running     0          34m
+    kube-system     kube-apiserver-controlplane                 1/1     Running     0          34m
+    kube-system     kube-controller-manager-controlplane        1/1     Running     0          34m
+    kube-system     kube-proxy-dt25z                            1/1     Running     0          34m
+    kube-system     kube-proxy-nqdps                            1/1     Running     0          34m
+    kube-system     kube-scheduler-controlplane                 1/1     Running     0          34m
+    marketing       redis-896d5c767-66547                       1/1     Running     0          29m
+
+
+    在CKAD考試中不可能一個個去修改每個pod的配置文件，故先找到deployment, 直接修改deployment的配置，如果沒有deployment則修改pod
+    
+
+    我的配置: (解題思路錯誤!!!)
+
+    controlplane ~ ➜  k get deploy -n dev1401
+    No resources found in dev1401 namespace.
+
+    (此處判斷錯誤，由於nginx-admission-create 跟 nginx-admission-patch 兩個pod的狀態均為completed，不符合"is not in a Ready state")
+    ~~controlplane ~ ➜  k get deploy -n ingress-nginx~~
+    ~~NAME                       READY   UP-TO-DATE   AVAILABLE   AGE~~
+    ~~ingress-nginx-controller   1/1     1            1           33m~~
+
+    以下修改的是ingress-nginx-controller deploy. 實際考試的時候由於pod狀態是completed,故此deployment不需要修改
+
+        spec:
+          progressDeadlineSeconds: 600
+          replicas: 1
+          revisionHistoryLimit: 10
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: controller
+              app.kubernetes.io/instance: ingress-nginx
+              app.kubernetes.io/name: ingress-nginx
+          strategy:
+            rollingUpdate:
+              maxSurge: 25%
+              maxUnavailable: 25%
+            type: RollingUpdate
+          template:
+            metadata:
+              creationTimestamp: null
+              labels:
+                app.kubernetes.io/component: controller
+                app.kubernetes.io/instance: ingress-nginx
+                app.kubernetes.io/name: ingress-nginx
+            spec:
+              containers:
+              ... (中間忽略)
+            livenessProbe:
+              failureThreshold: 5
+              httpGet:
+                path: /healthz
+                port: 10254
+                scheme: HTTP
+              initialDelaySeconds: 10
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 1
+
+
+        修改為:
+
+            livenessProbe:
+              exec: (添加此block)
+                command:
+                  - ["ls", "/var/www/html/file_check"] 
+              failureThreshold: 5
+              httpGet:
+                path: /healthz
+                port: 10254
+                scheme: HTTP
+              initialDelaySeconds: 10 (Checked)
+              periodSeconds: 60 (Modified)
+              successThreshold: 1
+              timeoutSeconds: 1
+
+
+              livenessProbe:
+              exec:
+                command: ["ls", "/var/www/html/file_check"]
+              failureThreshold: 5
+              httpGet:
+                path: /healthz
+                port: 10254
+                scheme: HTTP
+              initialDelaySeconds: 10
+              periodSeconds: 60
+              successThreshold: 1
+              timeoutSeconds: 1
+
+    
+          ERROR:
+          # deployments.apps "ingress-nginx-controller" was not valid:
+          # * spec.template.spec.containers[0].livenessProbe.httpGet: Forbidden: may not specify more than 1 handler type
+          #
+
+            exec 跟httpGet 這兩個handler不可同時配置
+
+
+            再修改為:
+            livenessProbe:
+              exec:
+                command: ["ls", "/var/www/html/file_check"]
+              failureThreshold: 5
+              initialDelaySeconds: 10
+              periodSeconds: 60
+              successThreshold: 1
+              timeoutSeconds: 1
+
+      ~~controlplane ~ ✖ k edit deploy -n ingress-nginx ingress-nginx-controller~~
+      ~~deployment.apps/ingress-nginx-controller edited~~
+
+      ingress-nginx-admission-create 和 ingress-nginx-admission-patch 不需要修改，因為它們是一次性運行的 Pod，Completed 狀態是預期行為。
+      nginx1401 需要修正，**因為它是一個持續運行的服務**，但 READY 0/1，表示 Readiness Probe 失敗，導致無法對外提供服務。
+      這就是為什麼解答只修改 nginx1401，而不處理 ingress-nginx-admission-* 這兩個 Pod。 
+
+
+      Solution: 
+
+      From the doc: "If the probe succeeds, the Pod will be marked as ready and will receive traffic from services. If the **readiness probe fails**, **the pod will be marked unready and will not receive traffic from any services**."
+
+      故應優先檢查readinessProbe設置!!!!
+
+      檢查 nginx1401 pod配置:
+
+      k describe pod nginx1401 -n dev1401
+
+      ...
+      Events:
+      Type     Reason     Age                   From               Message
+      ----     ------     ----                  ----               -------
+      Normal   Scheduled  4m35s                 default-scheduler  Successfully assigned dev1401/nginx1401 to node01
+      Normal   Pulling    4m33s                 kubelet            Pulling image "kodekloud/nginx"
+      Normal   Pulled     4m29s                 kubelet            Successfully pulled image "kodekloud/nginx" in 3.969s (3.969s including waiting). Image size: 50986074 bytes.
+      Normal   Created    4m29s                 kubelet            Created container nginx
+      Normal   Started    4m29s                 kubelet            Started container nginx
+      Warning  Unhealthy  97s (x21 over 4m29s)  kubelet            **Readiness probe failed: Get "http://172.17.1.2:8080/": dial tcp 172.17.1.2:8080: connect: connection refused**
+
+      spec:
+        containers:
+        - image: kodekloud/nginx
+          imagePullPolicy: IfNotPresent
+          name: nginx
+          ports:
+          - **containerPort: 9080**
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              **port: 8080**
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+
+      **readinessProbe監聽的端口跟containerPort(實際使用)的端口不一致，導致pod 無法正常將status修正為ready**:
+
+      先實際確認端口是否存在:
+
+      (倘若curl, netstat等指令不存在，直接安裝)
+      controlplane ~ ✖ kubectl exec -it nginx1401 -n dev1401 -- curl -I http://localhost:8080
+      error: Internal error occurred: Internal error occurred: error executing command in container: failed to exec in container: failed to start exec "ae2eaad09b6b6740aa669804cd0de1e940e4f8169c06bc8c640661015b902736": OCI runtime exec failed: exec failed: unable to start container process: exec: "curl": executable file not found in $PATH: unknown
+
+
+      controlplane ~ ✖ kubectl exec -it nginx1401 -n dev1401 -- sh
+      # **apt update && apt install -y net-tools iproute2 curl**
+      Get:1 http://security.debian.org/debian-security buster/updates InRelease [34.8 kB]
+      Get:2 http://deb.debian.org/debian buster InRelease [122 kB]
+      Get:3 http://deb.debian.org/debian buster-updates InRelease [56.6 kB]
+      Get:4 http://security.debian.org/debian-security buster/updates/main amd64 Packages [610 kB]
+      Get:5 http://deb.debian.org/debian buster/main amd64 Packages [7909 kB]
+      Get:6 http://deb.debian.org/debian buster-updates/main amd64 Packages [8788 B]
+      Fetched 8741 kB in 2s (4354 kB/s)                         
+
+      # curl -I http://localhost:8080 
+      curl: (7) Failed to connect to localhost port 8080: Connection refused
+      # curl -I http://localhost:8090         
+      curl: (7) Failed to connect to localhost port 8090: Connection refused
+      # curl -I http://localhost:9080 
+      HTTP/1.1 200 OK
+      Server: nginx/1.17.8
+      Date: Thu, 06 Feb 2025 17:15:55 GMT
+      Content-Type: text/html
+      Content-Length: 612
+      Last-Modified: Tue, 21 Jan 2020 13:36:08 GMT
+      Connection: keep-alive
+      ETag: "5e26fe48-264"
+      Accept-Ranges: bytes
+
+      spec:
+        containers:
+        - image: kodekloud/nginx
+          imagePullPolicy: IfNotPresent
+          name: nginx
+          ports:
+          - containerPort: 9080
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              **port: 9080** 修正為9080
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+
+      controlplane ~ ➜  kc nginx1401.yaml 
+      pod/nginx1401 created
+
+      controlplane ~ ➜  k get pod -A
+      NAMESPACE     NAME                                       READY   STATUS    RESTARTS   AGE
+      default       dev-pod-dind-878516                        3/3     Running   0          21m
+      default       pod-xyz1123                                1/1     Running   0          21m
+      default       webapp-color                               1/1     Running   0          18m
+      dev0403       nginx0403                                  1/1     Running   0          21m
+      dev0403       pod-dar85                                  1/1     Running   0          21m
+      dev1401       nginx1401                                  1/1     Running   0          3s
+      dev1401       pod-kab87                                  1/1     Running   0          21m
+      dev2406       nginx2406                                  1/1     Running   0          21m
+      dev2406       pod-var2016                                1/1     Running   0          21m
+      e-commerce    e-com-1123                                 1/1     Running   0          21m
+      kube-system   calico-kube-controllers-5d7d9cdfd8-ql5jv   1/1     Running   0          24m
+      kube-system   canal-q9rzw                                2/2     Running   0          24m
+      kube-system   canal-rmclb                                2/2     Running   0          23m
+      kube-system   coredns-77d6fd4654-99vzv                   1/1     Running   0          24m
+      kube-system   coredns-77d6fd4654-jd5sh                   1/1     Running   0          24m
+      kube-system   etcd-controlplane                          1/1     Running   0          24m
+      kube-system   kube-apiserver-controlplane                1/1     Running   0          24m
+      kube-system   kube-controller-manager-controlplane       1/1     Running   0          24m
+      kube-system   kube-proxy-b5m4v                           1/1     Running   0          23m
+      kube-system   kube-proxy-tdl64                           1/1     Running   0          24m
+      kube-system   kube-scheduler-controlplane                1/1     Running   0          24m
+      marketing     redis-896d5c767-hbc2j                      1/1     Running   0          21m
+
+
+      (建議添加: initialDelaySeconds: 10  # ✅ 等待 10 秒後再檢查 有時候 Readiness Probe 需要一些時間來通過，建議增加 initialDelaySeconds，減少 Readiness Probe 過早失敗的情況。)
+
+      繼續修改文件，添加livenessProbe區塊
+
+      controlplane ~ ➜  vim nginx1401.yaml 
+
+      spec:
+      containers:
+      - image: kodekloud/nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 9080
+          protocol: TCP
+        **livenessProbe:** 再添加此block
+          exec:
+            command:
+              - sh
+              - -c
+              - ls /var/www/html/file_check  # ✅  **如果這個命令失敗，容器就會重啟**
+          initialDelaySeconds: 10  # ✅  啟動後 10 秒才開始檢查
+          periodSeconds: 60        # ✅  之後每 60 秒執行一次
+          failureThreshold: 1      # ✅  一次失敗就重啟
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 9080
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+
+      controlplane ~ ➜  k delete pod nginx1401 -n dev1401 --force
+      Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+      pod "nginx1401" force deleted
+
+      controlplane ~ ➜  kc nginx1401.yaml 
+      pod/nginx1401 created
+
+      controlplane ~ ➜  k get pod -A
+      NAMESPACE     NAME                                       READY   STATUS    RESTARTS   AGE
+      default       dev-pod-dind-878516                        3/3     Running   0          32m
+      default       pod-xyz1123                                1/1     Running   0          32m
+      default       webapp-color                               1/1     Running   0          29m
+      dev0403       nginx0403                                  1/1     Running   0          32m
+      dev0403       pod-dar85                                  1/1     Running   0          32m
+      dev1401       nginx1401                                  1/1     Running   0          2s
+      dev1401       pod-kab87                                  1/1     Running   0          32m
+      dev2406       nginx2406                                  1/1     Running   0          32m
+      dev2406       pod-var2016                                1/1     Running   0          32m
+      e-commerce    e-com-1123                                 1/1     Running   0          32m
+      kube-system   calico-kube-controllers-5d7d9cdfd8-ql5jv   1/1     Running   0          35m
+      kube-system   canal-q9rzw                                2/2     Running   0          35m
+      kube-system   canal-rmclb                                2/2     Running   0          34m
+      kube-system   coredns-77d6fd4654-99vzv                   1/1     Running   0          35m
+      kube-system   coredns-77d6fd4654-jd5sh                   1/1     Running   0          35m
+      kube-system   etcd-controlplane                          1/1     Running   0          35m
+      kube-system   kube-apiserver-controlplane                1/1     Running   0          35m
+      kube-system   kube-controller-manager-controlplane       1/1     Running   0          35m
+      kube-system   kube-proxy-b5m4v                           1/1     Running   0          34m
+      kube-system   kube-proxy-tdl64                           1/1     Running   0          35m
+      kube-system   kube-scheduler-controlplane                1/1     Running   0          35m
+      marketing     redis-896d5c767-hbc2j                      1/1     Running   0          32m
+
 
 
 
@@ -867,4 +1756,164 @@
       但 CKAD 考試時間有限，通常 方式 1 會更快！
 
       不要浪費時間安裝 telnet 或 nc，直接用 busybox 測試會更快。
+
+
+
+
+2. Ingress + Virtual Host Routing
+    Create a single ingress resource called ingress-vh-routing. The resource should route HTTP traffic to multiple hostnames as specified below:
+    The service video-service should be accessible on http://watch.ecom-store.com:30093/video
+    The service apparels-service should be accessible on http://apparels.ecom-store.com:30093/wear
+    To ensure that the path is correctly rewritten for the backend service, add the following annotation to the resource:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    Here 30093 is the port used by the Ingress Controller
+
+    controlplane ~ ➜  k get deployment -o wide
+    NAME              READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS      IMAGES                         SELECTOR
+    webapp-apparels   1/1     1            1           109s   simple-webapp   kodekloud/ecommerce:apparels   app=webapp-apparels
+    webapp-video      1/1     1            1           109s   simple-webapp   kodekloud/ecommerce:video      app=webapp-video
+
+    controlplane ~ ✖ vim ingress-vh-routing.yaml
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: ingress-vh-routing
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    spec:
+      rules:
+      - host: watch.ecom-store.com
+        http:
+          paths:
+          - path: /video
+            pathType: Prefix
+            backend:
+              service:
+                name: video-service
+                port:
+                  ~~number: 30093~~
+      - host: apparels.ecom-store.com
+        http:
+          paths:
+          - path: /wear
+            pathType: Prefix
+            backend:
+              service:
+                name: apparels-service
+                port:
+                  number: ~~30093~~
+
+    controlplane ~ ➜  k create -f  ingress-vh-routing.yaml
+    ingress.networking.k8s.io/ingress-vh-routing created
+
+
+    ingress.networking.k8s.io/ingress-vh-routing edited
+
+    controlplane ~ ➜  k get ingress
+    NAME                 CLASS    HOSTS                                          ADDRESS          PORTS   AGE
+    ingress-vh-routing   <none>   watch.ecom-store.com,apparels.ecom-store.com   172.20.103.190   80      4m40s
+
+
+
+    Solution:
+
+    controlplane ~ ➜  k get svc 
+    NAME               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+    apparels-service   ClusterIP   172.20.14.91   <none>        8080/TCP   14m
+    kubernetes         ClusterIP   172.20.0.1     <none>        443/TCP    62m
+    video-service      ClusterIP   172.20.61.90   <none>        8080/TCP   14m
+
+    controlplane ~ ✖ vim ingress-vh-routing.yaml
+
+    ---
+    kind: Ingress
+    apiVersion: networking.k8s.io/v1
+    metadata:
+      name: ingress-vh-routing
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    spec:
+      rules:
+      - host: watch.ecom-store.com
+        http:
+          paths:
+          - pathType: Prefix
+            path: "/video"
+            backend:
+              service:
+                name: video-service
+                port:
+                  number: **8080**
+      - host: apparels.ecom-store.com
+        http:
+          paths:
+          - pathType: Prefix
+            path: "/wear"
+            backend:
+              service:
+                name: apparels-service
+                port:
+                  number: **8080**
+
+
+
+    controlplane ~ ➜  k get ingress
+    NAME                 CLASS    HOSTS                                          ADDRESS          PORTS   AGE
+    ingress-vh-routing   <none>   watch.ecom-store.com,apparels.ecom-store.com   172.20.103.190   80      11m
+
+    controlplane ~ ➜  curl -I http://172.20.103.190
+    HTTP/1.1 404 Not Found
+    Date: Fri, 07 Feb 2025 11:40:09 GMT
+    Content-Type: text/html
+    Content-Length: 146
+    Connection: keep-alive
+
+
+    controlplane ~ ➜  curl -H "Host: watch.ecom-store.com" http://172.20.103.190/video
+
+    <!doctype html>
+    <title>Hello from Flask</title>
+    <body style="background: #30336b;">
+
+    <div style="color: #e4e4e4;
+        text-align:  center;
+        height: 90px;
+        vertical-align:  middle;">
+        <img src="https://res.cloudinary.com/cloudusthad/image/upload/v1547052431/video.jpg">
+
+    </div>
+
+    </body>
+    controlplane ~ ➜  
+
+    controlplane ~ ➜  curl -H "Host: apparels.ecom-store.com" http://172.20.103.190/wear
+    <!doctype html>
+    <title>Hello from Flask</title>
+    <body style="background: #2980b9;">
+
+    <div style="color: #e4e4e4;
+        text-align:  center;
+        height: 90px;
+        vertical-align:  middle;">
+        <img src="https://res.cloudinary.com/cloudusthad/image/upload/v1547052428/apparels.jpg">
+
+    </div>
+
+    </body>
+
+
+    Ingress 依賴 Host 來匹配流量
+    Ingress 設定了 基於 Host 的路由（watch.ecom-store.com 和 apparels.ecom-store.com）。
+    當你直接訪問 http://172.20.103.190/video，瀏覽器的請求 不會帶有 Host 標頭，Kubernetes Ingress Controller 無法識別該請求應該發送到哪個 Service，導致 404 Not Found。
+    2️⃣ Ingress Controller 預設拒絕未匹配的請求
+    當請求的 Host 與 Ingress rules 不匹配時，Ingress Controller 不會自動將流量轉發，而是返回 404 Not Found。
+    解決方法：你需要告訴瀏覽器使用 watch.ecom-store.com 來發送請求（見下方解決方案）。
+    3️⃣ DNS 解析問題
+    watch.ecom-store.com 並不是一個公共域名，瀏覽器無法解析它到 172.20.103.190。
+    解決方法：手動配置 /etc/hosts 來讓本機知道這個域名應該解析到 Ingress Controller 的 IP。
+
+
+
+        
+
 
