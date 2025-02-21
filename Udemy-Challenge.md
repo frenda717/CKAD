@@ -356,7 +356,7 @@
     ![Challenge01 Answer Check](images/udemy-pic/challenge01-7.png "Answer Check")
 
 ### Challenge 02
-![Challenge02 Graph](images/udemy-pic/challenge01-6.png "Challenge01 Graph")
+![Challenge02 Graph](images/udemy-pic/challenge02.png "Challenge01 Graph")
 1.  controlplane ~ ➜  k get svc
     (這類 kube-apiserver 相關的故障排查不會直接出現在 CKAD 考試，但理解kube-apiserver跟kubecofig的概念將有幫助)
     E0219 14:49:51.160962   13932 memcache.go:265] couldn't get current server API group list: Get "https://controlplane:6433/api?timeout=32s": dial tcp 192.168.50.43:6433: connect: connection refused
@@ -836,6 +836,514 @@
 
 
 ### Challenge 03
+![Challenge03 Graph](images/udemy-pic/challenge03.png "Challenge03 Graph")
+1.  Create a new namespace: name = 'vote'
+
+    controlplane ~ ➜  k create ns vote
+    namespace/vote created
+
+    ![Challenge03 Answer Check](images/udemy-pic "Answer Check")
+
+2.  Create a new service: name = vote-service
+    port = '5000'
+    targetPort = '80'
+    nodePort= '31000'
+    service endpoint exposes deployment 'vote-deployment'
+
+     ~~controlplane ~ ➜  k create svc nodeport vote-service --tcp=5000:80 --node-port=31000 -n vote~~
+    service/vote-service created
+
+    controlplane ~ ➜ k expose deploy -h
+    
+    //# **Create a service** for an nginx deployment, which serves on port 80 and connects to the containers on port 8000
+    kubectl expose deployment nginx --port=80 --target-port=8000
+    
+    controlplane ~ ➜  kubectl expose deployment -n vote vote-deployment  --port=80 --target-port=8000
+    Error from server (NotFound): deployments.apps "vote-deployment" not found
+    (先完成 k create deploy vote-deployment)
+
+
+3.  Create a deployment: name = 'vote-deployment'
+    image = 'kodekloud/examplevotingapp_vote:before'
+    status: 'Running'
+
+    controlplane ~ ✖ k create deploy vote-deployment --image=kodekloud/examplevotingapp_vote:before -n vote 
+    deployment.apps/vote-deployment created
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-3.png "Answer Check")
+
+    繼續完成2. 
+
+    controlplane ~ ➜  kubectl expose deployment -n vote vote-deployment  --port=5000 --target-port=80 --nodePort=31000 --dry-run=client -o yaml > vote-svc.yaml
+
+    controlplane ~ ✖ vim vote-svc.yaml 
+    apiVersion: v1
+    kind: Service
+    metadata:
+    creationTimestamp: "2025-02-21T01:15:18Z"
+    labels:
+        app: vote-deployment
+    name: vote-service
+    namespace: vote
+    resourceVersion: "6266"
+    uid: a314e15f-49ed-482a-8047-f850a6d87e24
+    spec:
+    clusterIP: 172.20.182.39
+    clusterIPs:
+    - 172.20.182.39
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - port: 5000
+        protocol: TCP
+        targetPort: 80
+        nodePort: 31000
+    selector:
+        app: vote-deployment
+    sessionAffinity: None
+    type: NodePort
+    status:
+    loadBalancer: {}
+
+    controlplane ~ ➜  k create -f  vote-svc.yaml 
+    service/vote-service created
+
+    controlplane ~ ➜  k get svc -n vote 
+    NAME           TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+    vote-service   NodePort   172.20.182.39   <none>        80:31000/TCP   4s
+
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-2.png "Answer Check")
+
+
+
+4.  New Service, name = 'redis'
+    port: '6379'
+    targetPort: '6379'
+    type: 'ClusterIP'
+    service endpoint exposes deployment 'redis-deployment'
+
+    controlplane ~ ➜  k get svc -n vote 
+    NAME               TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+
+    vote-service       NodePort    172.20.182.39   <none>        5000:31000/TCP   15m
+
+    沒有redis-depolyment, 先處理下一題
+
+
+5.  Create new deployment, name: 'redis-deployment'
+    image: 'redis:alpine'
+    Volume Type: 'EmptyDir'
+    Volume Name: 'redis-data'
+    mountPath: '/data'
+    status: 'Running'
+
+    controlplane ~ ➜  k get deploy -n vote 
+    NAME              READY   UP-TO-DATE   AVAILABLE   AGE
+    vote-deployment   1/1     1            1           10m
+
+    controlplane ~ ✖ k create deploy redis-deployment --image=redis:alpine --dry-run=client -o yaml > redis-deploy.yaml
+
+    controlplane ~ ➜  vim redis-deploy.yaml 
+
+    controlplane ~ ➜  k explain deployment.spec.template.spec.volumes.emptyDir
+    GROUP:      apps
+    KIND:       Deployment
+    VERSION:    v1
+
+    FIELD: emptyDir <EmptyDirVolumeSource>
+
+
+    DESCRIPTION:
+        emptyDir represents a temporary directory that shares a pod's lifetime. More
+        info: https://kubernetes.io/docs/concepts/storage/volumes#emptydir
+        Represents an empty directory for a pod. Empty directory volumes support
+        ownership management and SELinux relabeling.
+        
+    FIELDS:
+    medium        <string>
+        medium represents what type of storage medium should back this directory.
+        The default is "" which means to use the node's default medium. Must be an
+        empty string (default) or Memory. More info:
+        https://kubernetes.io/docs/concepts/storage/volumes#emptydir
+
+    sizeLimit     <Quantity>
+        sizeLimit is the total amount of local storage required for this EmptyDir
+        volume. The size limit is also applicable for memory medium. The maximum
+        usage on memory medium EmptyDir would be the minimum value between the
+        SizeLimit specified here and the sum of memory limits of all containers in a
+        pod. The default is nil which means that the limit is undefined. More info:
+        https://kubernetes.io/docs/concepts/storage/volumes#emptydir
+
+    (沒有要求emptyDir底下需配置那些參數)
+
+    controlplane ~ ➜  vim redis-deploy.yaml 
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    creationTimestamp: null
+    labels:
+        app: redis-deployment
+    name: redis-deployment
+    namespace: vote
+    spec:
+    replicas: 1
+    selector:
+        matchLabels:
+        app: redis-deployment
+    strategy: {}
+    template:
+        metadata:
+        creationTimestamp: null
+        labels:
+            app: redis-deployment
+        spec:
+        containers:
+        - image: redis:alpine
+            name: redis
+            resources: {}
+            volumeMounts:
+            - mountPath: /data
+            name: redis-data
+        volumes:
+        - name: redis-data
+            **emptyDir: {}**
+    status: {}
+
+    controlplane ~ ➜  k get deploy -n vote 
+    NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+    redis-deployment   1/1     1            1           5s
+    vote-deployment    1/1     1            1           20m
+
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-5.png "Answer Check")
+
+    回到4. 
+
+    controlplane ~ ➜  k expose deploy -n vote redis-deployment --port=6379 --target-port=6379 --dry-run=client -o yaml > redis-svc.yaml (imperative指令默認生成clusterIP)
+
+    controlplane ~ ➜  vim redis-svc.yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+    creationTimestamp: null
+    labels:
+        app: redis-deployment
+    name: redis # 變更為redis
+    namespace: vote
+    spec:
+    ports:
+    - port: 6379
+        protocol: TCP
+        targetPort: 6379
+    selector:
+        app: redis-deployment
+    status:
+    loadBalancer: {}
+
+    controlplane ~ ➜  k create -f  redis-svc.yaml 
+    service/redis created
+
+    controlplane ~ ➜  k get svc -n vote 
+    NAME           TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+    redis          ClusterIP   172.20.156.164   <none>        6379/TCP         27s
+    vote-service   NodePort    172.20.182.39    <none>        5000:31000/TCP   18m
+
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-4.png "Answer Check")
+
+6.  Create new deployment. name: 'worker'
+    image: 'kodekloud/examplevotingapp_worker'
+    status: 'Running'
+
+    controlplane ~ ✖ k create deploy worker --image=kodekloud/examplevotingapp_worker -n vote
+    deployment.apps/worker created
+
+    controlplane ~ ➜  k get deploy -n vote 
+    NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+    redis-deployment   1/1     1            1           2m1s
+    vote-deployment    1/1     1            1           34m
+    worker             0/1     1            0           8s 
+    controlplane ~ ➜  k get pod -n vote 
+    NAME                                READY   STATUS             RESTARTS      AGE
+    redis-deployment-7b5d847967-tzlg7   1/1     Running            0             6m17s
+    vote-deployment-5d4d9b6d88-sjnc4    1/1     Running            0             38m
+    **worker-7567f4b597-z9qhn**             0/1     CrashLoopBackOff   5 (43s ago)   4m24s (發現status 不為running)
+
+
+    controlplane ~ ➜  kubectl logs -f -n vote worker-7567f4b597-z9qhn 
+    System.AggregateException: One or more errors occurred. (No such device or address) ---> System.Net.Internals.SocketExceptionFactory+ExtendedSocketException: No such device or address
+    at System.Net.Dns.HostResolutionEndHelper(IAsyncResult asyncResult)
+    at System.Net.Dns.EndGetHostAddresses(IAsyncResult asyncResult)
+    at System.Net.Dns.<>c.<GetHostAddressesAsync>b__14_1(IAsyncResult asyncResult)
+    at System.Threading.Tasks.TaskFactory`1.FromAsyncCoreLogic(IAsyncResult iar, Func`2 endFunction, Action`1 endAction, Task`1 promise, Boolean requiresSynchronization)
+    --- End of inner exception stack trace ---
+    at System.Threading.Tasks.Task`1.GetResultCore(Boolean waitCompletionNotification)
+    at Npgsql.NpgsqlConnector.Connect(NpgsqlTimeout timeout)
+    at Npgsql.NpgsqlConnector.RawOpen(NpgsqlTimeout timeout)
+    at Npgsql.NpgsqlConnector.Open(NpgsqlTimeout timeout)
+    at Npgsql.ConnectorPool.Allocate(NpgsqlConnection conn, NpgsqlTimeout timeout)
+    at Npgsql.NpgsqlConnection.OpenInternal()
+    at Worker.Program.OpenDbConnection(String connectionString) in /code/src/Worker/Program.cs:line 74
+    at Worker.Program.Main(String[] args) in /code/src/Worker/Program.cs:line 19
+    ---> (Inner Exception #0) System.Net.Internals.SocketExceptionFactory+ExtendedSocketException: No such device or address
+    at System.Net.Dns.HostResolutionEndHelper(IAsyncResult asyncResult)
+    at System.Net.Dns.EndGetHostAddresses(IAsyncResult asyncResult)
+    at System.Net.Dns.<>c.<GetHostAddressesAsync>b__14_1(IAsyncResult asyncResult)
+    at System.Threading.Tasks.TaskFactory`1.FromAsyncCoreLogic(IAsyncResult iar, Func`2 endFunction, Action`1 endAction, Task`1 promise, Boolean requiresSynchronization)<---
+
+    Worker 需要透過環境變數指定：
+    DB：資料庫（Postgres）的服務名稱／連線資訊
+    REDIS：Redis 的服務名稱／連線資訊
+
+    故需要添加env環境變量指定後端REDIS 跟DB
+    controlplane ~ ➜  cat worker-deployment.yaml 
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    creationTimestamp: null
+    labels:
+        app: worker
+    name: worker
+    namespace: vote
+    spec:
+    replicas: 1
+    selector:
+        matchLabels:
+        app: worker
+    strategy: {}
+    template:
+        metadata:
+        creationTimestamp: null
+        labels:
+            app: worker
+        spec:
+        containers:
+        - image: kodekloud/examplevotingapp_worker
+            name: examplevotingapp-worker-ldmkz
+            resources: {}
+            env:
+            - name: REDIS
+            value: redis-service       # 連線的 Redis Service
+            - name: DB
+            value: postgres-service    # 連線的 Postgres Service
+    status: {}
+
+    由於還沒有創建postgres-service,故先完成下一個步驟
+
+
+7.  Create new service: 'db'
+    port: '5432'
+    targetPort: '5432'
+    type: 'ClusterIP'
+
+    controlplane ~ ➜  kubectl create service clusterip db --tcp=5432:5432 -n vote 
+    service/db created
+
+    controlplane ~ ➜  k get svc -n vote 
+    NAME           TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+    db             ClusterIP   172.20.107.122   <none>        5432/TCP         10s
+    redis          ClusterIP   172.20.156.164   <none>        6379/TCP         21m
+    vote-service   NodePort    172.20.182.39    <none>        5000:31000/TCP   39m
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-7.png "Answer Check")
+
+    回到上一個問題
+    controlplane ~ ➜  vim worker-deployment.yaml  (再次檢查)
+
+
+    controlplane ~ ➜  k replace -f  worker-deployment.yaml 
+    deployment.apps/worker replaced (讓配置文件重新加載)
+
+    controlplane ~ ➜  k get deploy -n vote 
+    NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+    redis-deployment   1/1     1            1           16m
+    vote-deployment    1/1     1            1           49m
+    worker             1/1     1            1           5s
+
+    controlplane ~ ➜  k get pod -n vote 
+    NAME                                READY   STATUS        RESTARTS        AGE
+    redis-deployment-7b5d847967-tzlg7   1/1     Running       0               17m
+    vote-deployment-5d4d9b6d88-sjnc4    1/1     Running       0               49m
+    worker-59476c8f48-b6lsz             1/1     Terminating   6 (4m11s ago)   7m1s
+    worker-59476c8f48-jf69w             1/1     Running       0               20s
+
+    controlplane ~ ➜  k get pod -n vote 
+    NAME                                READY   STATUS    RESTARTS   AGE
+    redis-deployment-7b5d847967-tzlg7   1/1     Running   0          17m
+    vote-deployment-5d4d9b6d88-sjnc4    1/1     Running   0          50m
+    worker-59476c8f48-jf69w             1/1     Running   0          41s
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-6.png "Answer Check")
+
+
+8.  Create new deployment. name: 'db-deployment'
+    image: 'postgres:9.4' and add the env: 'POSTGRES_HOST_AUTH_METHOD=trust'
+    Volume Type: 'EmptyDir'
+    Volume Name: 'db-data'
+    mountPath: '/var/lib/postgresql/data'
+    status: 'Running'
+
+    controlplane ~ ➜  k create deploy -n vote result-deployment --image=kodekloud/examplevotingapp_result:before --dry-run=client -o yaml > result-deploy.yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    creationTimestamp: null
+    labels:
+        app: db-deployment
+    name: db-deployment
+    namespace: vote
+    spec:
+    replicas: 1
+    selector:
+        matchLabels:
+        app: db-deployment
+    strategy: {}
+    template:
+        metadata:
+        creationTimestamp: null
+        labels:
+            app: db-deployment
+        spec:
+        containers:
+        - image: postgres:9.4
+            name: postgres
+            resources: {}
+            volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+            name: db-data
+            env:
+            - name: POSTGRES_HOST_AUTH_METHOD
+                value: trust
+        volumes:
+        - name: db-data
+            emptyDir:
+    status: {}
+
+
+    controlplane ~ ➜  kc db-deploy.yaml 
+    deployment.apps/db-deployment created
+
+    controlplane ~ ➜  k get deploy -n vote 
+    NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+    db-deployment      0/1     1            0           6s
+    redis-deployment   1/1     1            1           8m1s
+    vote-deployment    1/1     1            1           16m
+    worker             1/1     1            1           3m51s
+
+    controlplane ~ ➜  k get pod -n vote 
+    NAME                                READY   STATUS              RESTARTS   AGE
+    db-deployment-97ff599b-pvmrq        0/1     ContainerCreating   0          10s
+    redis-deployment-7b5d847967-vmdjm   1/1     Running             0          8m6s
+    vote-deployment-5c69cf876d-h5m9v    1/1     Running             0          16m
+    worker-56459679d5-hrvh2             1/1     Running             0          3m56s
+
+    controlplane ~ ➜  k get pod -n vote 
+    NAME                                READY   STATUS    RESTARTS   AGE
+    db-deployment-97ff599b-pvmrq        1/1     Running   0          22s
+    redis-deployment-7b5d847967-vmdjm   1/1     Running   0          8m18s
+    vote-deployment-5c69cf876d-h5m9v    1/1     Running   0          16m
+    worker-56459679d5-hrvh2             1/1     Running   0          4m8s
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-8.png "Answer Check")
+
+9.  Create new deployment, name: 'result-deployment'
+    image: 'kodekloud/examplevotingapp_result:before'
+    status: 'Running'
+
+    controlplane ~ ➜  k create deploy -n vote result-deployment --image=kodekloud/examplevotingapp_result:before
+    deployment.apps/result-deployment created
+
+    controlplane ~ ➜  k get deploy -n vote 
+    NAME                READY   UP-TO-DATE   AVAILABLE   AGE
+    db-deployment       1/1     1            1           3m28s
+    redis-deployment    1/1     1            1           11m
+    result-deployment   0/1     1            0           5s
+    vote-deployment     1/1     1            1           19m
+    worker              1/1     1            1           7m13s
+
+    controlplane ~ ➜  k get pod -n vote 
+    NAME                                 READY   STATUS              RESTARTS   AGE
+    db-deployment-97ff599b-pvmrq         1/1     Running             0          3m32s
+    redis-deployment-7b5d847967-vmdjm    1/1     Running             0          11m
+    result-deployment-5b48744bdc-47hhc   0/1     ContainerCreating   0          10s
+    vote-deployment-5c69cf876d-h5m9v     1/1     Running             0          19m
+    worker-56459679d5-hrvh2              1/1     Running             0          7m18s
+
+    controlplane ~ ➜  k get pod -n vote 
+    NAME                                 READY   STATUS    RESTARTS   AGE
+    db-deployment-97ff599b-pvmrq         1/1     Running   0          3m41s
+    redis-deployment-7b5d847967-vmdjm    1/1     Running   0          11m
+    result-deployment-5b48744bdc-47hhc   1/1     Running   0          19s
+    vote-deployment-5c69cf876d-h5m9v     1/1     Running   0          19m
+    worker-56459679d5-hrvh2              1/1     Running   0          7m27s
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-9.png "Answer Check")
+
+10. port: '5001'
+    targetPort: '80'
+    NodePort: '31001'
+
+    controlplane ~ ➜  k expose deployment -n vote result-deployment --port=5001 --target-port=80 --dry-run=client -o yaml > result-svc.yaml
+
+    controlplane ~ ➜  vim result-svc.yaml 
+    apiVersion: v1
+    kind: Service
+    metadata:
+    creationTimestamp: null
+    labels:
+        app: result-deployment
+    name: result-service
+    namespace: vote
+    spec:
+    type: NodePort
+    ports:
+    - port: 5001
+        protocol: TCP
+        targetPort: 80
+        nodePort: 31001
+    selector:
+        app: result-deployment
+    status:
+    loadBalancer: {}
+
+    controlplane ~ ➜  kc result-svc.yaml 
+    service/result-service created
+
+    controlplane ~ ➜  k get svc -n vote 
+    NAME             TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+    db               ClusterIP   172.20.247.111   <none>        5432/TCP         18m
+    redis            ClusterIP   172.20.145.160   <none>        6379/TCP         22m
+    result-service   NodePort    172.20.250.148   <none>        5001:31001/TCP   5s
+    vote-service     NodePort    172.20.159.234   <none>        5000:31000/TCP   27m
+
+
+    ![Challenge03 Answer Check](images/udemy-pic/challenge03-10.png "Answer Check")
+
+
+    **IMPORTANT**:
+
+    controlplane ~ ✖ kc result-svc.yaml 
+    The Service "result-service" is invalid: spec.ports[0].nodePort: Invalid value: 31001: provided port is already allocated
+
+    controlplane ~ ➜  netstat -nlpt|grep 31001
+
+    controlplane ~ ✖ 
+    
+    Kubernetes 中的「provided port is already allocated」錯誤，**並不代表在該 Node 作業系統層面真的有個程式在 31001 埠口上「佔用」( netstat 也就查不到 )**。而是指 Kubernetes 集群內已經有其他 Service 使用了相同的 nodePort。同一個集群裡，nodePort 必須全域唯一，不可以重複。
+
+    controlplane ~ ➜  kubectl get svc --all-namespaces -o wide
+    NAMESPACE     NAME                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                  AGE     SELECTOR
+    default       kubernetes          ClusterIP   172.20.0.1       <none>        443/TCP                  74m     <none>
+    kube-system   kube-dns            ClusterIP   172.20.0.10      <none>        53/UDP,53/TCP,9153/TCP   74m     k8s-app=kube-dns
+    vote          db                  ClusterIP   172.20.247.111   <none>        5432/TCP                 16m     app=db
+    vote          redis               ClusterIP   172.20.145.160   <none>        6379/TCP                 20m     app=redis-deployment
+    vote          result-deployment   NodePort    172.20.129.196   <none>        5001:31001/TCP           3m55s   app=result-deployment
+    vote          vote-service        NodePort    172.20.159.234   <none>        5000:31000/TCP           24m     app=vote-deployment
+
 
 
 ### Challenge 04
