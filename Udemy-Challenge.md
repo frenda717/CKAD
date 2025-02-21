@@ -1347,3 +1347,412 @@
 
 
 ### Challenge 04
+![Challenge04 Graph](images/udemy-pic/challenge04.png "Challenge04 Graph")
+1.  PersistentVolume - Name: redis01
+    Access modes: ReadWriteOnce
+    Size: 1Gi
+    hostPath: /redis01, directory should be created on worker node
+
+    controlplane ~ ✖ vim redis01-pv.yaml
+
+    controlplane ~ ➜  alias kc="k create -f"
+
+    controlplane ~ ➜  kc redis01-pv.yaml 
+    persistentvolume/redis01 created
+
+    controlplane ~ ➜  k get pv
+    NAME      CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+    redis01   1Gi        RWO            Retain           Available                          <unset>                          4s
+
+    ![Challenge04 Answer Check](images/udemy-pic/challenge04-1.png "Answer Check")
+
+2.  PersistentVolume - Name: redis02
+    Access modes: ReadWriteOnce
+    Size: 1Gi
+    hostPath: /redis02, directory should be created on worker node
+    
+    跟redis01配置一樣，直接複製redis01.yaml文件
+
+    controlplane ~ ✖ cp redis01-pv.yaml redis02-pv.yaml
+    controlplane ~ ➜  cp redis01-pv.yaml redis03-pv.yaml
+    controlplane ~ ➜  cp redis01-pv.yaml redis04-pv.yaml
+    controlplane ~ ➜  cp redis01-pv.yaml redis05-pv.yaml
+    controlplane ~ ➜  cp redis01-pv.yaml redis06-pv.yaml
+    controlplane ~ ➜  vim redis02-pv.yaml 
+    controlplane ~ ➜  vim redis03-pv.yaml 
+    controlplane ~ ➜  vim redis04-pv.yaml 
+    controlplane ~ ➜  vim redis05-pv.yaml 
+    controlplane ~ ➜  vim redis06-pv.yaml 
+
+    controlplane ~ ➜  kc redis02-pv.yaml 
+    persistentvolume/redis02 created
+
+    controlplane ~ ➜  kc redis03-pv.yaml redis04-pv.yaml redis05-pv.yaml redis06-pv.yaml 
+    error: Unexpected args: [redis04-pv.yaml redis05-pv.yaml redis06-pv.yaml]
+    See 'kubectl create -h' for help and examples
+
+    controlplane ~ ✖ k create -f  redis03-pv.yaml -f redis04-pv.yaml  -f redis05-pv.yaml -f redis06-pv.yaml 
+    persistentvolume/redis03 created
+    persistentvolume/redis04 created
+    persistentvolume/redis05 created
+    persistentvolume/redis06 created
+
+3.  PersistentVolume - Name: redis03
+    Access modes: ReadWriteOnce
+    Size: 1Gi
+    hostPath: /redis03, directory should be created on worker node
+
+4.  PersistentVolume - Name: redis04
+    Access modes: ReadWriteOnce
+    Size: 1Gi
+    hostPath: /redis04, directory should be created on worker node
+
+
+5.  PersistentVolume - Name: redis05
+    Access modes: ReadWriteOnce
+    Size: 1Gi
+    hostPath: /redis05, directory should be created on worker node
+
+6.  PersistentVolume - Name: redis06
+    Access modes: ReadWriteOnce
+    Size: 1Gi
+    hostPath: /redis06, directory should be created on worker node
+
+    ![Challenge04 Answer Check](images/udemy-pic/challenge04-6.png "Answer Check")
+
+
+7. ConfigMap: redis-cluster-configmap is already created. Inspect it…
+
+    ![Challenge04 Answer Check](images/udemy-pic/challenge04-6.png "Answer Check")
+
+8.  Ports - service name 'redis-cluster-service', port name: 'client', port: '6379'
+    Ports - service name 'redis-cluster-service', port name: 'gossip', port: '16379'
+    Ports - service name 'redis-cluster-service', port name: 'client', targetPort: '6379'
+    Ports - service name 'redis-cluster-service', port name: 'gossip', targetPort: '16379'
+
+    controlplane ~ ➜  k create svc nodeport redis-cluster-service --tcp=6379 --dry-run=client -o yaml > redis-cluster-service.yaml
+
+    controlplane ~ ➜  vim redis-cluster-service.yaml 
+    apiVersion: v1
+    kind: Service
+    metadata:
+    creationTimestamp: null
+    labels:
+        app: redis-cluster-service
+    name: redis-cluster-service
+    spec:
+    ports:
+    - name: "client"
+        port: 6379
+        protocol: TCP
+        targetPort: 6379
+    - name: "gossip"
+        port: 16379
+        protocol: TCP
+        targetPort: 16379
+    selector:
+        app: redis-cluster-service
+    type: NodePort
+    status:
+    loadBalancer: {}
+
+    controlplane ~ ➜  kc redis-cluster-service.yaml 
+    service/redis-cluster-service created
+
+    controlplane ~ ➜  k get svc
+    NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                          AGE
+    kubernetes              ClusterIP   172.20.0.1       <none>        443/TCP                          109m
+    redis-cluster-service   NodePort    172.20.172.150   <none>        6379:30752/TCP,16379:30221/TCP   30s
+
+    ![Challenge04 Answer Check](images/udemy-pic/challenge04-8.png "Answer Check")    
+
+
+9.  StatefulSet - Name: redis-cluster
+    Replicas: 6
+    **Pods status: Running** (All 6 replicas)
+    Image: redis:5.0.1-alpine, Label = app: redis-cluster
+    container name: redis, command: ["/conf/update-node.sh", "redis-server", "/conf/redis.conf"]
+    Env: name: 'POD_IP', valueFrom: 'fieldRef', fieldPath: 'status.podIP' (apiVersion: v1)
+    Ports - name: 'client', containerPort: '6379'
+    Ports - name: 'gossip', containerPort: '16379'
+    Volume Mount - name: 'conf', mountPath: '/conf', readOnly:'false' (ConfigMap Mount)
+    Volume Mount - name: 'data', mountPath: '/data', readOnly:'false' (volumeClaim)
+    volumes - name: 'conf', Type: 'ConfigMap', ConfigMap Name: 'redis-cluster-configmap',
+    Volumes - name: 'conf', ConfigMap Name: 'redis-cluster-configmap', **defaultMode = '0755'**
+    volumeClaimTemplates - name: 'data'
+    volumeClaimTemplates - accessModes: 'ReadWriteOnce'
+    volumeClaimTemplates - Storage Request: '1Gi'
+
+    controlplane ~ ➜  vim redis-cluster-StatefulSet.yaml
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+    name: redis-cluster
+    spec:
+    selector:
+        matchLabels:
+        app: redis-cluster
+    serviceName: "nginx"
+    replicas: 6
+    minReadySeconds: 10 # by default is 0
+    template:
+        metadata:
+        labels:
+            app: redis-cluster
+        spec:
+        terminationGracePeriodSeconds: 10
+        containers:
+        - name: redis
+            image: redis:5.0.1-alpine
+            command: [~~"/conf/update-node.sh", "redis-server", "/conf/redis.conf"~~] # 導致pod CrashLoopBackOff
+                                                         # Message:      failed to create containerd task: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: exec: "/conf/update-node.sh": stat /conf/update-node.sh: no such file or directory: unknown
+                                                         # 最根本的原因：**容器 command 指定要執行 /conf/update-node.sh，但該檔案根本沒被放到容器裡**。
+                                                        最簡易的解法：利用同一個 redis-cluster-configmap 把 update-node.sh 和 redis.conf 都放進去，再掛載到 /conf。同時確保 update-node.sh 有可執行權限 (可透過 defaultMode: 0755 + 正確的 shebang #!/bin/sh 或用 chmod +x 事先處理)。
+            env:                                          
+            - name: POD_IP
+                valueFrom:
+                fieldRef:
+                    fieldPath: status.podIP
+            ports:
+            - name: client
+            containerPort: 6379
+            - name: gossip
+            containerPort: 16379
+            **volumeMounts**: # **倘若有兩個volumeMounts 區塊，後者將覆蓋前者!!**
+            - name: conf
+            mountPath: /conf
+            readOnly: false
+            **volumeMounts**: # 如果要配置兩個volumeMounts,則只需要一個volumeMounts 底下設置兩個即可!!
+            - name: data
+            mountPath: /data
+            readOnly: false
+        volumes:
+            - name: conf
+            configMap:
+                name: redis-cluster-configmap
+                # **需加defualtMode!!** 見如下k explain 過程
+    volumeClaimTemplates:
+    - metadata:
+        name: data
+        spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+            requests:
+            storage: 1Gi
+
+    **注意!!!! k expalin需要分析至最底層才有辦法grep出該層底下的property**:
+
+    controlplane ~ ➜  k explain StatefulSet.spec.template.spec.volumes|grep defaultMode
+
+    controlplane ~ ➜  k explain StatefulSet.spec.template.spec.volumes.configMap|grep defaultMode
+    defaultMode   <integer>
+        defaultMode is optional: mode bits used to set permissions on created files
+
+    
+    **陷阱!!!** CKAD正式考試時不會提醒StatefulSet/DaemonSet/Deployment/ReplicaSet這幾個object創建完之後，應檢查pod狀態! 請記得檢查
+    k get StatefulSet正常，但是k get pod 發現六個pod並沒有正常啟動，因為 exec: "/conf/update-node.sh": stat /conf/update-node.sh: no such file or directory 問題:
+    
+    在 StatefulSet 裝載了一個名為 conf 的 ConfigMap Volume（指向 redis-cluster-configmap），並掛載到 /conf 路徑。
+    但 redis-cluster-configmap 裡面，目前極可能只有 redis.conf，並沒有 update-node.sh 這個檔案。
+    容器在啟動時會執行 command: ["/conf/update-node.sh", "redis-server", "/conf/redis.conf"]，結果找不到 update-node.sh，導致容器一直 CrashLoopBackOff。
+
+    解決方式
+    (**採用**)方式 1. 在同一個 ConfigMap 裝入 update-node.sh 與 redis.conf
+    準備本機端兩個檔案：
+    update-node.sh (腳本內容要包含 #!/bin/sh 之類的 shebang，以及你需要執行的邏輯)
+    redis.conf (你的 Redis 設定)
+
+    確認腳本可以被執行：
+    chmod +x update-node.sh
+
+    建立（或更新）ConfigMap：
+    kubectl create configmap redis-cluster-configmap \
+    --from-file=update-node.sh \
+    --from-file=redis.conf \
+    -o yaml --dry-run=client | kubectl apply -f -
+
+    這樣就會把兩個檔案都放進 redis-cluster-configmap，並且 key 分別是 update-node.sh、redis.conf。
+    原本 StatefulSet 中 volumes.configMap.name: redis-cluster-configmap 就會把這兩個檔案都掛載到 /conf 下
+
+    方式 2. 自行打造客製化映像 (Docker build)
+    如果你不想把腳本放在 ConfigMap，也可以選擇自行打造一個自定義映像，把 update-node.sh 直接內置到 /conf。例如：
+
+    FROM redis:5.0.1-alpine
+    COPY update-node.sh /conf/update-node.sh
+    COPY redis.conf /conf/redis.conf
+    RUN chmod +x /conf/update-node.sh
+    之後把這個映像 push 到 Registry（或在 cluster node 上直接 build），再在 StatefulSet 的 image: 欄位指向你自己的映像。
+    
+    使用方法1:
+    controlplane ~ ➜  k get cm
+    NAME                      DATA   AGE
+    kube-root-ca.crt          1      42m
+    redis-cluster-configmap   2      23m
+
+    controlplane ~ ➜  k get configmap redis-cluster-configmap -o yaml > redis-cluster-configmap.yaml
+    apiVersion: v1
+    data:
+    redis.conf: |-
+        cluster-enabled yes
+        cluster-require-full-coverage no
+        cluster-node-timeout 15000
+        cluster-config-file /data/nodes.conf
+        cluster-migration-barrier 1
+        appendonly yes
+        protected-mode no
+    update-node.sh: |
+        #!/bin/sh
+        REDIS_NODES="/data/nodes.conf"
+        sed -i -e "/myself/ s/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}/${POD_IP}/" ${REDIS_NODES}
+        exec "$@"
+    kind: ConfigMap
+    metadata:
+    creationTimestamp: "2025-02-21T22:15:56Z"
+    name: redis-cluster-configmap
+    namespace: default
+    resourceVersion: "2130"
+    uid: 37c1b880-8b19-42f5-ad0f-dbf10c5df18c
+
+    卻發現redis-cluster-configmap 已經包含兩個 key：
+    redis.conf
+    update-node.sh
+    而且 update-node.sh 內容也正確帶有 #!/bin/sh，這表示理論上容器啟動後應該找得到並執行 /conf/update-node.sh。如果 KodeKloud 仍判定你「未完成」或 Pod 還是在 CrashLoopBackOff，請確認以下幾點：
+
+    a. 檢查容器內是否真的有 /conf/update-node.sh
+    controlplane ~ ➜  kubectl exec -it redis-cluster-0 -- ls -l /conf
+    total 0
+    lrwxrwxrwx    1 root     root            17 Feb 21 22:34 redis.conf -> ..data/redis.conf
+    lrwxrwxrwx    1 root     root            21 Feb 21 22:34 update-node.sh -> ..data/update-node.sh    
+
+    b. 直接刪除 Pod，讓 StatefulSet 重新建，讓pod掛載到最新的 ConfigMap:
+    controlplane ~ ➜  kubectl delete pod redis-cluster-0
+    pod "redis-cluster-0" deleted
+
+    controlplane ~ ➜  k get statefulsets.apps 
+    NAME            READY   AGE
+    redis-cluster   6/6     18m
+
+    controlplane ~ ➜  k get pod
+    NAME              READY   STATUS    RESTARTS   AGE
+    redis-cluster-0   1/1     Running   0          80s
+    redis-cluster-1   1/1     Running   0          13m
+    redis-cluster-2   1/1     Running   0          13m
+    redis-cluster-3   1/1     Running   0          13m
+    redis-cluster-4   1/1     Running   0          12m
+    redis-cluster-5   1/1     Running   0          12m
+
+    以上便解決了/conf/update-node.sh no such file or directory的問題。
+
+    新增defulatMode 以及修正volumeMounts後，完善的配置如下:
+    controlplane ~ ➜  cat redis-cluster-StatefulSet.yaml 
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+    name: redis-cluster
+    spec:
+    selector:
+        matchLabels:
+        app: redis-cluster
+    serviceName: "nginx"
+    replicas: 6
+    minReadySeconds: 10 # by default is 0
+    template:
+        metadata:
+        labels:
+            app: redis-cluster
+        spec:
+        terminationGracePeriodSeconds: 10
+        containers:
+        - name: redis
+            image: redis:5.0.1-alpine
+            command: ["/conf/update-node.sh", "redis-server", "/conf/redis.conf"]
+            env:
+            - name: POD_IP
+                valueFrom:
+                fieldRef:
+                    fieldPath: status.podIP
+            ports:
+            - name: client
+            containerPort: 6379
+            - name: gossip
+            containerPort: 16379
+            **volumeMounts**:
+            - name: conf
+            mountPath: /conf
+            readOnly: false
+            - name: data
+            mountPath: /data
+            readOnly: false
+        volumes:
+            - name: conf
+            configMap:
+                name: redis-cluster-configmap
+                **defaultMode**: 0755
+    volumeClaimTemplates:
+    - metadata:
+        name: data
+        spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+            requests:
+            storage: 1Gi
+
+    controlplane ~ ➜  k replace -f redis-cluster-statefulset.yaml 
+    statefulset.apps/redis-cluster replaced
+
+    ![Challenge04 Answer Check](images/udemy-pic/challenge04-9.png "Answer Check")  
+
+10. Command: kubectl exec -it redis-cluster-0 -- redis-cli --cluster create --cluster-replicas 1 $(kubectl get pods -l    app=redis-cluster -o jsonpath='{range.items[*]}{.status.podIP}:6379 {end}')
+    (這個指令的目的在於使用 redis-cli 命令，把同一個 StatefulSet 裡的所有 Redis Pod 結合成一個 Redis Cluster，並指定每個 master 需要幾個 replicas。以下是它的主要組成與作用：)
+
+    controlplane ~ ➜   kubectl exec -it redis-cluster-0 -- redis-cli --cluster create --cluster-replicas 1 $(kubectl get pods -l app=redis-cluster -o jsonpath='{range.items[*]}{.status.podIP}:6379 {end}')
+    >>> Performing hash slots allocation on 6 nodes...
+    Master[0] -> Slots 0 - 5460
+    Master[1] -> Slots 5461 - 10922
+    Master[2] -> Slots 10923 - 16383
+    Adding replica 172.17.1.5:6379 to 172.17.1.8:6379
+    Adding replica 172.17.1.6:6379 to 172.17.1.3:6379
+    Adding replica 172.17.1.7:6379 to 172.17.1.4:6379
+    M: f8446c7380e17199dbe0925d898030d20699ef57 172.17.1.8:6379
+    slots:[0-5460] (5461 slots) master
+    M: c36d4e14c4e5b5d27bb3d19bb59f68478e0ceb46 172.17.1.3:6379
+    slots:[5461-10922] (5462 slots) master
+    M: 988ef9c94fc552bfa07b64eafee2adf55e30785a 172.17.1.4:6379
+    slots:[10923-16383] (5461 slots) master
+    S: 42a06c0b27e429da814844030dccbb37a1eb1faa 172.17.1.5:6379
+    replicates f8446c7380e17199dbe0925d898030d20699ef57
+    S: 5af90ed90676a46688936718f02263dc6819c49f 172.17.1.6:6379
+    replicates c36d4e14c4e5b5d27bb3d19bb59f68478e0ceb46
+    S: bdba2ddf4a6eb069cb6393f781f12418e54d2ce0 172.17.1.7:6379
+    replicates 988ef9c94fc552bfa07b64eafee2adf55e30785a
+    Can I set the above configuration? (type 'yes' to accept): yes
+    >>> Nodes configuration updated
+    >>> Assign a different config epoch to each node
+    >>> Sending CLUSTER MEET messages to join the cluster
+    Waiting for the cluster to join
+    .....
+    >>> Performing Cluster Check (using node 172.17.1.8:6379)
+    M: f8446c7380e17199dbe0925d898030d20699ef57 172.17.1.8:6379
+    slots:[0-5460] (5461 slots) master
+    1 additional replica(s)
+    S: bdba2ddf4a6eb069cb6393f781f12418e54d2ce0 172.17.1.7:6379
+    slots: (0 slots) slave
+    replicates 988ef9c94fc552bfa07b64eafee2adf55e30785a
+    S: 42a06c0b27e429da814844030dccbb37a1eb1faa 172.17.1.5:6379
+    slots: (0 slots) slave
+    replicates f8446c7380e17199dbe0925d898030d20699ef57
+    S: 5af90ed90676a46688936718f02263dc6819c49f 172.17.1.6:6379
+    slots: (0 slots) slave
+    replicates c36d4e14c4e5b5d27bb3d19bb59f68478e0ceb46
+    M: c36d4e14c4e5b5d27bb3d19bb59f68478e0ceb46 172.17.1.3:6379
+    slots:[5461-10922] (5462 slots) master
+    1 additional replica(s)
+    M: 988ef9c94fc552bfa07b64eafee2adf55e30785a 172.17.1.4:6379
+    slots:[10923-16383] (5461 slots) master
+    1 additional replica(s)
+    [OK] All nodes agree about slots configuration.
+    >>> Check for open slots...
+    >>> Check slots coverage...
+    [OK] All 16384 slots covered.
+
+    ![Challenge04 Answer Check](images/udemy-pic/challenge04-10.png "Answer Check")  
