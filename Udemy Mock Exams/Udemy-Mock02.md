@@ -8,7 +8,18 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 1.32版本新Concept: Configurable container restart delay (02) pod annotation (04) CRD subresource (14)
 
 ### SECTION: APPLICATION DESIGN AND BUILD
-01. (Container Args vs. Command)
+01. (Container Args vs. Command)  In the ckad-multi-containers namespaces, create a ckad-sidecar-pod pod that matches the following requirements.
+    Pod has an emptyDir volume named my-vol.
+
+    The first container named main-container, runs nginx:1.16 image. This container mounts the my-vol volume at /usr/share/nginx/html path.
+
+    The second container named sidecar-container, runs busybox:1.28 image. This container mounts the my-vol volume at /var/log path.
+
+    Every 5 seconds, this container should write the current date along with greeting message Hi I am from Sidecar container to index.html in the my-vol volume.
+
+    For this question, please set the context to cluster1 by running:
+    kubectl config use-context cluster1
+
     apiVersion: v1
     kind: Pod
     metadata:
@@ -83,6 +94,37 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 
     doc: https://kubernetes.io/docs/concepts/cluster-administration/logging/
 
+
+    Solution:
+    apiVersion: v1
+    kind: Pod
+    metadata:
+    namespace: ckad-multi-containers
+    name: ckad-sidecar-pod
+    spec:
+    containers:
+        - image: nginx:1.16
+        name: main-container
+        resources: {}
+        ports:
+            - containerPort: 80
+        volumeMounts:
+            - name: my-vol
+            mountPath: /usr/share/nginx/html
+        - image: busybox:1.28
+        command:
+            - /bin/sh
+            - -c
+            - **while true; do echo $(date -u)** Hi I am from Sidecar container >> /var/log/index.html; **sleep 5;done**
+        name: sidecar-container
+        resources: {}
+        volumeMounts:
+            - name: my-vol
+            mountPath: /var/log
+    dnsPolicy: Default
+    volumes:
+        - name: my-vol
+        emptyDir: {}
 
 
 
@@ -324,7 +366,19 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 
 ### SECTION: APPLICATION DEPLOYMENT
 
-06. 
+06. Create a new deployment called ocean-apd in the default namespace using the image kodekloud/webapp-color:v1.
+    Use the following specs for the deployment:
+    1. Replica count should be 2.
+    2. Set the Max Unavailable to 45% and Max Surge to 55%.
+    3. Create the deployment and ensure all the pods are ready.
+    4. After successful deployment, upgrade the deployment image to kodekloud/webapp-color:v2 and inspect the deployment rollout status.
+    5. Check the rolling history of the deployment and on the student-node, save the current revision count number to the /opt/ocean-revision-count.txt file.
+    6. Finally, perform a rollback and revert the deployment image to the older version.
+    
+    For this question, please set the context to cluster3 by running:
+    kubectl config use-context cluster3
+
+
     student-node ~ ➜  k create deploy ocean-apd --image=kodekloud/webapp-color:v1 --replicas=2 --dry-run=client -o yaml > ocean-apd.yaml
     student-node ~ ➜  cat ocean-apd.yaml 
     apiVersion: apps/v1
@@ -371,11 +425,11 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
                     cni.projectcalico.org/podIP: 172.17.1.3/32
                     cni.projectcalico.org/podIPs: 172.17.1.3/32
 
-    student-node ~ ➜  k describe pod ocean-apd-f665c6949-5xgjg |grep image
+    student-node ~ ➜  k describe pod **ocean-apd-f665c6949-5xgjg** |grep image
     Normal  Pulling    3m49s  kubelet            Pulling image "kodekloud/webapp-color:v1"
     Normal  Pulled     3m46s  kubelet            Successfully pulled image "kodekloud/webapp-color:v1" in 139ms (2.384s including waiting)
 
-    student-node ~ ➜  k set image deployment/ocean-apd webapp-color=kodekloud/webapp-color:v2
+    student-node ~ ➜  k set image deployment/ocean-apd **webapp-color=**kodekloud/webapp-color:v2
     deployment.apps/ocean-apd image updated
 
     student-node ~ ➜  k rollout history deploy ocean-apd > /opt/ocean-revision-count.txt
@@ -397,7 +451,7 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
     3         <none>
 
 
-07. (Helm)This deployment will be facilitated through the kubernetes Helm chart on the cluster1-controlplane node to fulfill the requirements of our new client
+07. (Helm) This deployment will be facilitated through the kubernetes Helm chart on the cluster1-controlplane node to fulfill the requirements of our new client
 
     The chart URL and other specifications are as follows: -
     The chart URL link - https://kubernetes.github.io/dashboard/
@@ -409,6 +463,10 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 
     student-node ~ ➜  helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
     "kubernetes-dashboard" has been added to your repositories
+
+    student-node ~ ➜  helm repo list
+    NAME                    URL                                    
+    kubernetes-dashboard    https://kubernetes.github.io/dashboard/
 
     student-node ~ ✖ helm search repo kubernetes-dashboard
     NAME                                            CHART VERSION   APP VERSION     DESCRIPTION                                   
@@ -426,9 +484,14 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 
 ### SECTION: SERVICES AND NETWORKING
 
-09.  
+09. Create a pod with name pod21-ckad-svcn using the nginx:alpine image in the default namespace and also expose the pod using service pod21-ckad-svcn on port 80.
+
+    Note: Use the imperative command for above scenario
     student-node ~ ➜  k run pod21-ckad-svcn --image=nginx:alpine
     pod/pod21-ckad-svcn created
+
+    For this question, please set the context to cluster3 by running:
+    kubectl config use-context cluster3
 
     student-node ~ ➜  k expose pod pod21-ckad-svcn --port=80
     service/pod21-ckad-svcn exposed
@@ -647,7 +710,15 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 
     Now, in generated service definition file add the nodePort field with the given port number under the ports section and create a service.
 
-12. 
+12. Please use the namespace nginx-deployment for the following scenario.
+
+    Create a deployment with name nginx-ckad11 using nginx image with 2 replicas. Also expose the deployment via ClusterIP service .i.e. nginx-ckad11-service on port 80. Use the label app=nginx-ckad for both resources.
+
+    Now, create a NetworkPolicy .i.e. ckad-allow so that only pods with label criteria: allow can access the deployment on port 80 and apply it.
+
+    For this question, please set the context to cluster1 by running:
+    kubectl config use-context cluster1
+
     student-node ~ ➜  k create deploy nginx-ckad11 -n nginx-deployment --image=nginx --replicas=2 --dry-run=client -o yaml > nginx-ckad11.yaml
 
     student-node ~ ➜  vim nginx-ckad11.yaml 
@@ -706,7 +777,11 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
     replicaset.apps/nginx-ckad11-689d888dc5   2         2         2       6m27s
 
 
-13. (SecurityContext)
+13. (SecurityContext) Update pod ckad06-cap-aecs in the namespace ckad05-securityctx-aecs to run as root user and with the SYS_TIME and NET_ADMIN capabilities.
+    Note: Make only the necessary changes. Do not modify the name of the pod.
+
+    For this question, please set the context to cluster1 by running:
+    kubectl config use-context cluster1
     student-node ~ ➜  k get pod -n ckad05-securityctx-aecs ckad06-cap-aecs -o yaml > ckad06-cap-aecs.yaml
 
     student-node ~ ➜  vim ckad06-cap-aecs.yaml 
@@ -744,7 +819,7 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 
 
 ### SECTION: APPLICATION ENVIRONMENT, CONFIGURATION and SECURITY
-14. (CRD 難題!)Define a Kubernetes custom resource definition (CRD) for a new resource kind called Foo (plural form - foos) in the samplecontroller.k8s.io group.
+14. (CRD 難題!) Define a Kubernetes custom resource definition (CRD) for a new resource kind called Foo (plural form - foos) in the samplecontroller.k8s.io group.
     This CRD should have a version of v1alpha1 with a schema that includes two properties as given below:
     deploymentName (a string type) and replicas (an integer type with minimum value of 1 and maximum value of 5).
 
@@ -887,7 +962,16 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
     customresourcedefinition.apiextensions.k8s.io/foos.samplecontroller.k8s.io created
 
 
-15. ()
+15. We created two ConfigMaps ( ckad02-config1-aecs and ckad02-config2-aecs ) and one Pod named 
+    ckad02-test-pod-aecs in the ckad02-mult-cm-cfg-aecs namespace.
+    Create two environment variables for the above pod with below specifications:
+    GREETINGS with the data from configmap ckad02-config1-aecs
+    WHO with the data from configmap ckad02-config2-aecs.   
+    
+    Note : Only make the necessary changes. Do not modify other fields of the pod.
+    
+    For this question, please set the context to cluster1 by running:
+    kubectl config use-context cluster1
     
     我的配置:
     student-node ~ ➜  
@@ -1034,7 +1118,7 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 
     pod/ckad15-memory created
 
-17. Create a role configmap-updater in the ckad17-auth1 namespace granting the update and get permissions on configmaps resources but restricted to only the ckad17-config-map instance of the resource.
+17. (不知原因為何被判斷不正確) Create a role configmap-updater in the ckad17-auth1 namespace granting the update and get permissions on configmaps resources but restricted to only the ckad17-config-map instance of the resource.
 
     For this question, please set the context to cluster3 by running:
     kubectl config use-context cluster3
@@ -1045,12 +1129,12 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
     kind: Role
     metadata:
     namespace: ckad17-auth1
-    name: configmap-updater
+        name: configmap-updater
     rules:
     - apiGroups: [""] # "" indicates the core API group
-    resources: ["configmaps"]
-    resourceNames: ["ckad17-config-map"]
-    verbs: ["get", "update"]
+        resources: ["configmaps"]
+        resourceNames: ["ckad17-config-map"]
+        verbs: ["get", "update"]
 
 
     student-node ~ ➜  ^Configmap-updater.yaml
@@ -1065,15 +1149,74 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
     ckad17-config-map   2      4m21s
     kube-root-ca.crt    1      4m21s
 
+
+    以下配置卻被判斷為正確:
+    student-node ~ ✖ k create role configmap-updater -n ckad17-auth1 --verb=update,get --resource=configmaps --dry-run=client -o yaml > configmap-updater.yaml
+
+    student-node ~ ➜  vim configmap-updater.yaml 
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+        creationTimestamp: null
+        name: configmap-updater
+        namespace: ckad17-auth1
+    rules:
+    - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - ckad17-config-map
+    verbs:
+      - update
+      - get
+    
+    student-node ~ ➜  k create -f  configmap-updater.yaml 
+    role.rbac.authorization.k8s.io/configmap-updater created
+
+    student-node ~ ➜  k get cm -n ckad17-auth1 
+    NAME                DATA   AGE
+    ckad17-config-map   2      2m34s
+    kube-root-ca.crt    1      2m34s
+
+
 ### SECTION: APPLICATION OBSERVABILITY AND MAINTENANCE
+19. (難題! 概念其實很簡單) Identify the kube api-resources that use api_version=storage.k8s.io/v1 using kubectl command line interface and store them in /root/api-version.txt on student-node.
+
+    Solution:
+
+    Use the following command to get details:
+    kubectl api-resources --sort-by=kind | grep -i storage.k8s.io/v1  > /root/api-version.txt
+    --sort-by=kind: 可有可無，題目沒有要求要依照kind順序排列
+    grep -i storage.k8s.io/v1: 只需要grep 出storage.k8s.io/v1 者即可。
+
+    student-node ~ ➜  kubectl api-resources --sort-by=kind | **grep -i storage.k8s.io/v1**
+    csidrivers                                     storage.k8s.io/v1                   false        CSIDriver
+    csinodes                                       storage.k8s.io/v1                   false        CSINode
+    csistoragecapacities                           storage.k8s.io/v1                   true         CSIStorageCapacity
+    storageclasses                    sc           storage.k8s.io/v1                   false        StorageClass
+    volumeattachments                              storage.k8s.io/v1                   false        VolumeAttachment
+
+    student-node ~ ➜  kubectl api-resources  | grep -i storage.k8s.io/v1
+    csidrivers                                     storage.k8s.io/v1                   false        CSIDriver
+    csinodes                                       storage.k8s.io/v1                   false        CSINode
+    csistoragecapacities                           storage.k8s.io/v1                   true         CSIStorageCapacity
+    storageclasses                    sc           storage.k8s.io/v1                   false        StorageClass
+    volumeattachments                              storage.k8s.io/v1                   false        VolumeAttachment
+
+        
+    student-node ~ ✖ kubectl api-resources --sort-by=kind | grep -i storage.k8s.io/v1  > /root/api-version.txt
+
+    student-node ~ ➜  cat /root/api-version.txt 
+    csidrivers                                     storage.k8s.io/v1                   false        CSIDriver
+    csinodes                                       storage.k8s.io/v1                   false        CSINode
+    csistoragecapacities                           storage.k8s.io/v1                   true         CSIStorageCapacity
+    storageclasses                    sc           storage.k8s.io/v1                   false        StorageClass
+    volumeattachments                              storage.k8s.io/v1                   false        VolumeAttachment
 
 
-19. (難題!) Identify the kube api-resources that use api_version=storage.k8s.io/v1 using kubectl command line interface and store them in /root/api-version.txt on student-node.
 
-
-
-
-20. A manifest file located at root/ckad-aom.yaml on cluster3-controlplane. Which can be used to create a multi-containers pod. There are issues with the manifest file, preventing resource creation. Identify the errors, fix them and create resource.
+20. (難題!) A manifest file located at root/ckad-aom.yaml on cluster3-controlplane. Which can be used to create a multi-containers pod. There are issues with the manifest file, preventing resource creation. Identify the errors, fix them and create resource.
     You can access controlplane by ssh cluster3-controlplane if required.
 
     student-node ~ ✖ ssh cluster3-controlplane
@@ -1213,6 +1356,29 @@ Correct Answer: 01,03,05,06,08,09,12,13,15,18
 
     cluster3-controlplane ~ ➜  k logs ckad-aom -c nginx
     touch: cannot touch '/var/log/nginx/error.log': No such file or directory
+
+    
+    
+    Solution:
+    Set context to cluster3 and SSH to cluster3-controlplane.
+    use the kubectl create command we will see following error.
+
+    kubectl create -f ckad-aom.yaml
+    error: resource mapping not found for name: "ckad-aom" namespace: "" from "ckad-aom.yaml": no matches for kind "Pod" in version "V1"
+    ensure CRDs are installed first
+
+    about error shows us there is something wrong with apiVersion. So change it v1 and try again. and check status.
+
+    kubectl get pods
+    NAME            READY   STATUS             RESTARTS      AGE
+    ckad-aom   1/2     CrashLoopBackOff   3 (39s ago)   93s
+
+    Now check for reason using
+    kubectl describe pod ckad-aom
+
+    we will see that there is problem with nginx container
+
+    open yaml file and check in spec -> nginx container you can see error with mountPath --> mountPath: "/var/log" change it to mountPath: /var/log/nginx and apply changes.
 
 
 21. A manifest file located at root/ckad-aom.yaml on cluster3-controlplane. Which can be used to create a multi-containers pod. There are issues with the manifest file, preventing resource creation. Identify the errors, fix them and create resource.
