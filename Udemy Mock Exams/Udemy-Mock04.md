@@ -1,10 +1,19 @@
 First Attempt
-Socre: 38% Pass Score: 75%
-對題: 01,05,07,08,14,16,18,19,21
+Socre: 40% Pass Score: 75%
+對題: 01,05,07,08,12,14,16,18,19,21
 錯題: 02,03,04,13
-空題: 06,09~12,20
+空題: 06,09~11,20
+難題: 17 (CRD 設置annotation)
 1.32 新Concept: Privileged Container (01)
-不熟的topic: helm(06), CRD(17)
+不熟的topic: helm(06), CRD(17), k top pod (20)
+
+
+### SECTION: APPLICATION DESIGN AND BUILD
+01. In the ckad-pod-design namespace, create a pod named privileged-pod that runs the nginx:1.17 image, and the container should be run in privileged mode.
+    For this question, please set the context to cluster1 by running:
+    kubectl config use-context cluster1
+
+
 
 
 02. (Job 層級的配置誤寫到Pod層級內導致設置沒有生效) In the ckad-job namespace, create a job named very-long-pi that simply computes a π (pi) to 1024 places and prints it out.
@@ -250,6 +259,7 @@ Socre: 38% Pass Score: 75%
 
 
 
+### SECTION: APPLICATION DEPLOYMENT
 05. (這題答對 RollingUpdate改Recreate) A web application running on cluster2 called robox-west-apd on the fusion-apd-x1df5 namespace. The Ops team has created a new service account with a set of permissions for this web application. Update the newly created SA for this deployment.
     student-node ~ ➜  k get serviceaccounts -n fusion-apd-x1df5 
     NAME              SECRETS   AGE
@@ -332,7 +342,7 @@ Socre: 38% Pass Score: 75%
     student-node ~ ➜  helm repo list
     Error: no repositories to show
 
-    student-node ~ ✖ helm list
+    student-node ~ ✖ helm list (**要添加: - A 參數列出所有namespace**)
     NAME    NAMESPACE       REVISION        UPDATED STATUS  CHART   APP VERSION
 
 
@@ -354,8 +364,6 @@ Socre: 38% Pass Score: 75%
 
     After finding the kodekloud/click-counter:latest image, use the helm uninstall to remove the deployed chart that are using this vulnerable image.
     helm uninstall <RELEASE-NAME> -n <NAMESPACE>
-
-
 
 09. (概念其實很簡單! scale replicas) On cluster2, a new deployment called cube-alpha-apd has been created in the alpha-ns-apd namespace using the image kodekloud/webapp-color:v2. This deployment will test a newer version of the alpha app.
 
@@ -385,6 +393,7 @@ Socre: 38% Pass Score: 75%
     Once this is done, only ~40% of traffic should go to the v2 version.
 
 
+### SECTION: SERVICES AND NETWORKING
 10. (Fix Ingress Controller Error) We have deployed an application in the green-space namespace. we also deployed the ingress controller and the ingress resource.
 
     However, currently, the ingress controller is not working as expected. Inspect the ingress definitions and troubleshoot the issue so that the services are accessible as per the ingress resource definition.
@@ -405,8 +414,8 @@ Socre: 38% Pass Score: 75%
     You would see an Error or CrashLoopBackOff in the ingress-nginx-controller. Inspect the logs of the controller pod.
 
     cluster3-controlplane ~ ✖ k logs -n ingress-nginx ingress-nginx-controller-5f8964959d-278rc 
-    -------------------------------------------------------------------------------
-    --------
+    /-------------------------------------------------------------------------------
+    /--------
     F0316 08:03:28.111614      57 main.go:83] **No service with name default-backend-service found in namespace default**:
 
 
@@ -487,7 +496,6 @@ Socre: 38% Pass Score: 75%
     Using manifest file
 
     Solution manifest file to create a ingress resource as follows:
-    ---
     apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
@@ -509,10 +517,7 @@ Socre: 38% Pass Score: 75%
             port:
                 number: 8080
 
-12.  C
-
-
-13. (**Tricky!!! 題目沒有指定port!!! -> 那就自定義**)Create a Deployment named ckad13-deployment with "two replicas" of nginx image and expose it using a service named ckad13-service.
+12. (**Tricky!!! 題目沒有指定port!!! -> 那就自定義**)Create a Deployment named ckad13-deployment with "two replicas" of nginx image and expose it using a service named ckad13-service.
 
     Please be noted that service needs to be accessed from both inside and outside the cluster (use port 31080).
 
@@ -613,7 +618,7 @@ Socre: 38% Pass Score: 75%
         nodePort: 31080
 
 
-
+### SECTION: APPLICATION ENVIRONMENT, CONFIGURATION and SECURITY
 14.  (這題答對CRD) We have a sample CRD at /root/ckad10-crd-aecs.yaml which should have the following 
 
     validations:
@@ -682,9 +687,6 @@ Socre: 38% Pass Score: 75%
             status: {}
     student-node ~ ➜  kc ckad10-crd.yaml 
     customresourcedefinition.apiextensions.k8s.io/holidaydestinations.destinations.k8s.io created
-
-
-
 
 15. (ClusterRole 設置non-resource-url錯誤) Create a ClusterRole named healthz-access that allows GET and POST requests to the non-resource endpoint /healthz and **all subpaths**.
 
@@ -772,7 +774,8 @@ Socre: 38% Pass Score: 75%
     kind: CustomResourceDefinition
     metadata:
         name: foos.stable.example.com
-        # 沒有設置annotation!!!! -> annotations: "api-approved.kubernetes.io": "unapproved, experimental-only"
+        # 沒有設置annotation!!!! -> **annotations: "api-approved.kubernetes.io": "unapproved, experimental-only"**
+        # 
     spec:
         group: samplecontroller.k8s.io
         scope: Namespaced
@@ -800,10 +803,10 @@ Socre: 38% Pass Score: 75%
                                 deploymentName:
                                     type: string
                         # **status** 應設置在此 # status 跟spec同層級
-                            type: objectt
-                            properties:
-                                availableReplicas:
-                                    type: integar
+                                type: objectt
+                                properties:
+                                    availableReplicas:
+                                        type: integar
                                 # 不用設置 deplolymentName
             subresources:
                 status: {}   # 開啟 status 子資源
@@ -884,8 +887,7 @@ Socre: 38% Pass Score: 75%
     customresourcedefinition.apiextensions.k8s.io/foos.samplecontroller.k8s.io created
 
 
-
-
+### SECTION: APPLICATION OBSERVABILITY AND MAINTENANCE
 20. (**k top pods指令**) Three pods hulk,thor and ironman were created on cluster1. Of the three pods, identify the following and copy them to below file,
 
     Pod with high memory usage
@@ -905,6 +907,16 @@ Socre: 38% Pass Score: 75%
     OR
     **kubectl top pod | grep -E 'hulk|thor|ironman'**
 
+    student-node ~ ➜  k top pods --sort-by memory
+    NAME                             CPU(cores)   MEMORY(bytes)   
+    hulk                             105m         250Mi           
+    ironman                          14m          30Mi            
+    nginx-resolver-ckad03-svcn       0m           23Mi            
+    thor                             1m           16Mi            
+    foo-controller-7b6956d98-zjmw8   2m           6Mi             
+    kodekloud-logs-aom               1m           0Mi    
+
+    Doc: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_top/kubectl_top_pod/
 
     Use below command to view the resource limits of pod .
     kubectl get pod hulk -o json | jq -r '.spec.containers[].resources.limits.memory'
