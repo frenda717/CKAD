@@ -324,7 +324,7 @@ Socre: 38% Pass Score: 75%
 
 
 
-06.  (helm) On the cluster1, the team has installed multiple helm charts on a different namespace. By mistake, those deployed resources include one of the vulnerable images called kodekloud/click-counter:latest. Find out the release name and uninstall it.
+06.  (helm uninstall) On the cluster1, the team has installed multiple helm charts on a different namespace. By mistake, those deployed resources include one of the vulnerable images called kodekloud/click-counter:latest. Find out the release name and uninstall it.
 
     For this question, please set the context to cluster1 by running:
     kubectl config use-context cluster1
@@ -344,9 +344,9 @@ Socre: 38% Pass Score: 75%
 
     Run the helm ls command with -A option to list the releases deployed on all the namespaces using helm.
 
-    helm ls -A
+    **helm ls -A** # Or: helm list -A
 
-    We will use the jq tool to extract the image name from the deployments.
+    We will use the **jq tool to extract the image name from the deployments**. # OR 直接 k describe deploy <> |grep Image: 
 
     kubectl get deploy -n <NAMESPACE> <DEPLOYMENT-NAME> -o json | jq -r '.spec.template.spec.containers[].image'
 
@@ -357,37 +357,35 @@ Socre: 38% Pass Score: 75%
 
 
 
-09. On cluster2, a new deployment called cube-alpha-apd has been created in the alpha-ns-apd namespace using the image kodekloud/webapp-color:v2. This deployment will test a newer version of the alpha app.
+09. (概念其實很簡單! scale replicas) On cluster2, a new deployment called cube-alpha-apd has been created in the alpha-ns-apd namespace using the image kodekloud/webapp-color:v2. This deployment will test a newer version of the alpha app.
 
-    Configure the deployment in such a way that the alpha-apd-service service routes less than 40% of traffic to the new deployment.
-
+    Configure the deployment in such a way that the alpha-apd-service service routes **less than 40% of traffic to the new deployment**. 
+    -> cube-alpha-apd 新的 v2 原本是50 %  題目要求: less than 40% of traffic 。 10 pods * 40 % = 4 pods -> 需要少於4pods, 那就scale down 為3 pods 或是更少(詳解設置為2 pods)
+    -> ruby-alpha-apd 舊的 v1 原本是50%
     NOTE: - Do not increase the replicas of the ruby-alpha-apd deployment.
 
     For this question, please set the context to cluster2 by running:
     kubectl config use-context cluster2
 
-    Run the following command to change the context: -
-    kubectl config use-context cluster2
-
-    In this task, we will use the kubectl command. Here are the steps: -
-    The cube-alpha-apd and ruby-alpha-apd deployment has 5-5 replicas. The alpha-apd-service service now routes traffic to 10 pods in total (5 replicas on the ruby-alpha-apd deployment and 5 replicas from cube-alpha-apd deployment).
-
     
     Solution:
-    Use the kubectl get command to list the following deployments: -
 
+    In this task, we will use the kubectl command. Here are the steps: -
+    a. The cube-alpha-apd and ruby-alpha-apd deployment has 5-5 replicas. The alpha-apd-service service now routes traffic to 10 pods in total (5 replicas on the ruby-alpha-apd deployment and 5 replicas from cube-alpha-apd deployment).
+
+    Use the kubectl get command to list the following deployments: -
     kubectl get deploy -n alpha-ns-apd
 
     Since the service distributes traffic to all pods equally, in this case, approximately 50% of the traffic will go to cube-alpha-apd deployment.
 
-    To reduce this below 40%, scale down the pods on the cube-alpha-apd deployment to the minimum to 2.
+    b. To reduce this below 40%, **scale down the pods on the cube-alpha-apd deployment to the minimum to 2**.
 
-    kubectl scale deployment --replicas=2 cube-alpha-apd -n alpha-ns-apd
+    **kubectl scale deployment --replicas=2 cube-alpha-apd -n alpha-ns-apd**
 
     Once this is done, only ~40% of traffic should go to the v2 version.
 
 
-10.  We have deployed an application in the green-space namespace. we also deployed the ingress controller and the ingress resource.
+10. (Fix Ingress Controller Error) We have deployed an application in the green-space namespace. we also deployed the ingress controller and the ingress resource.
 
     However, currently, the ingress controller is not working as expected. Inspect the ingress definitions and troubleshoot the issue so that the services are accessible as per the ingress resource definition.
 
@@ -398,7 +396,7 @@ Socre: 38% Pass Score: 75%
 
 
     Check the status of the ingress, pods, and application related services.
-    cluster3-controlplane ~ ➜  k get pods -n ingress-nginx 
+    cluster3-controlplane ~ ➜  **k get pods -n ingress-nginx**  # 在ingress-nginx裡面找到ingress-controller
     NAME                                        READY   STATUS      RESTARTS      AGE
     ingress-nginx-admission-create-l6fgw        0/1     Completed   0             11m
     ingress-nginx-admission-patch-sfgc4         0/1     Completed   0             11m
@@ -409,7 +407,7 @@ Socre: 38% Pass Score: 75%
     cluster3-controlplane ~ ✖ k logs -n ingress-nginx ingress-nginx-controller-5f8964959d-278rc 
     -------------------------------------------------------------------------------
     --------
-    F0316 08:03:28.111614      57 main.go:83] No service with name default-backend-service found in namespace default:
+    F0316 08:03:28.111614      57 main.go:83] **No service with name default-backend-service found in namespace default**:
 
 
     You see an error msg saying "No service with name default-backend-service found in namespace default".
@@ -432,7 +430,7 @@ Socre: 38% Pass Score: 75%
             - --publish-service=$(POD_NAMESPACE)/ingress-nginx-controller
             - --election-id=ingress-controller-leader
             - --watch-ingress-without-class=true
-            - --default-backend-service=green-space/default-backend-service   #Changed to correct namespace
+            - **--default-backend-service=green-space/default-backend-service**   #Changed to correct namespace
             - --controller-class=k8s.io/ingress-nginx
             - --ingress-class=nginx
             - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
@@ -442,7 +440,9 @@ Socre: 38% Pass Score: 75%
         
     Apply the manifest, it should be up and running.
 
-11.  For this scenario, we have already deployed an application in the global-space. Inspect them and create an ingress resource with name ingress-resource-xnz to make the application available at /eat on the Ingress service. Use ingress class of nginx.
+
+
+11. (Create Ingress) For this scenario, we have already deployed an application in the global-space. Inspect them and create an ingress resource with name ingress-resource-xnz to make the application available at /eat on the Ingress service. Use ingress class of nginx.
 
     Also, make use of following annotation fields: -
 
@@ -462,7 +462,7 @@ Socre: 38% Pass Score: 75%
 
     To view the applications running on global-space namespace, run the following.
 
-    cluster3-controlplane ~ ➜  kubectl get pod,svc -n global-space
+    cluster3-controlplane ~ ➜  **kubectl get pod,svc -n global-space**
     NAME                                 READY   STATUS    RESTARTS   AGE
     pod/default-backend-b46b9989-p9h28   1/1     Running   0          95s
     pod/webapp-food-dcd846f95-khhmw      1/1     Running   0          95s
@@ -501,7 +501,7 @@ Socre: 38% Pass Score: 75%
     rules:
     - http:
         paths:
-        - path: /eat
+        - **path: /eat**
             pathType: Prefix
             backend:
             service:
@@ -509,46 +509,7 @@ Socre: 38% Pass Score: 75%
             port:
                 number: 8080
 
-12.  Create a Deployment named ckad13-deployment with "two replicas" of nginx image and expose it using a service named ckad13-service.
-    For this question, please set the context to cluster2 by running:
-    kubectl config use-context cluster2
-
-    The following manifest can be used to create an deployment ckad13-deployment with nginx image and 2 replicas.
-
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-    name: ckad13-deployment
-    spec:
-    replicas: 2
-    selector:
-        matchLabels:
-        app: nginx
-    template:
-        metadata:
-        labels:
-            app: nginx
-        spec:
-        containers:
-        - name: nginx
-            image: nginx
-            ports:
-            - containerPort: 80
-      
-    To access from outside the cluster, we use nodeport type of service.
-    apiVersion: v1
-    kind: Service
-    metadata:
-    name: ckad13-service
-    spec:
-    selector:
-        app: nginx
-    type: NodePort
-    ports:
-        - name: http
-        port: 80
-        targetPort: 80
-        nodePort: 31080
+12.  C
 
 
 13. (**Tricky!!! 題目沒有指定port!!! -> 那就自定義**)Create a Deployment named ckad13-deployment with "two replicas" of nginx image and expose it using a service named ckad13-service.
