@@ -1148,6 +1148,194 @@ curl: (28) Connection timed out after 1000 milliseconds
 command terminated with exit code 28
 
 
+### Admission Controllers
+
+Write all Admission Controller Plugins, which are enabled in the kube-apiserver manifest, into /root/admission-plugins .
+
+Tips: we can check the kube-apiserver manifest:
+cat /etc/kubernetes/manifests/kube-apiserver.yaml
+
+controlplane $ cat /etc/kubernetes/manifests/kube- 
+kube-apiserver.yaml           kube-controller-manager.yaml  kube-scheduler.yaml           
+controlplane $ cat **/etc/kubernetes/manifests/kube-apiserver.yaml** 
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 172.30.1.2:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=172.30.1.2
+    - --allow-privileged=true
+    - --authorization-mode=Node,RBAC
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --enable-admission-plugins=NodeRestriction,LimitRanger,Priority
+    - --enable-bootstrap-token-auth=true
+    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+    - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+    - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+    - --etcd-servers=https://127.0.0.1:2379
+    - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+    - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+    - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+    - --requestheader-allowed-names=front-proxy-client
+    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+    - --requestheader-extra-headers-prefix=X-Remote-Extra-
+    - --requestheader-group-headers=X-Remote-Group
+    - --requestheader-username-headers=X-Remote-User
+    - --secure-port=6443
+    - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+    - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+    - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+    - --service-cluster-ip-range=10.96.0.0/12
+    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+    image: registry.k8s.io/kube-apiserver:v1.31.0
+    ...
+
+OR the running process:
+
+ps aux | grep kube-apiserver
+
+controlplane $ ps aux |grep kube-apiserver
+root       22684  4.2 13.0 1518876 265688 ?      Ssl  20:22   0:15 kube-apiserver --advertise-address=172.30.1.2 --allow-privileged=true --authorization-mode=Node,RBAC --client-ca-file=/etc/kubernetes/pki/ca.crt --enable-admission-plugins=NodeRestriction,LimitRanger,Priority --enable-bootstrap-token-auth=true --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key --etcd-servers=https://127.0.0.1:2379 --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key --requestheader-allowed-names=front-proxy-client --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt --requestheader-extra-headers-prefix=X-Remote-Extra- --requestheader-group-headers=X-Remote-Group --requestheader-username-headers=X-Remote-User --secure-port=6443 --service-account-issuer=https://kubernetes.default.svc.cluster.local --service-account-key-file=/etc/kubernetes/pki/sa.pub --service-account-signing-key-file=/etc/kubernetes/pki/sa.key --service-cluster-ip-range=10.96.0.0/12 --tls-cert-file=/etc/kubernetes/pki/apiserver.crt --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+root       26429  0.0  0.0   3304   656 pts/0    S+   20:29   0:00 grep --color=auto kube-apiserver
+
+
+Solution:
+
+controlplane $ cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep admission-plugins
+    - --enable-admission-plugins=NodeRestriction,LimitRanger,Priority
+(linux 指令像是awk並非ckad考試重點。 此題重點為知道要去: **/etc/kubernetes/manifests/kube-apiserver.yaml** 文件內查看enable的admission plugins)
+controlplane $ cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep admission-plugins | awk -F '=' '{print $2}' | tr ',' '\n' > /root/admission-plugins 
+controlplane $ cat /root/admission-plugins 
+NodeRestriction
+LimitRanger
+Priority
+
+
+
+Enable the Admission Controller Plugin MutatingAdmissionWebhook .
+
+Tips: **Always make a backup**! But into a different directory than /etc/kubernetes/manifests . (務必不要直接修改kube-apiserver.yaml文件，請先backup!)
+
+controlplane $ cp /etc/kubernetes/manifests/kube-apiserver.yaml ./kube-apiserver.yaml.bk
+controlplane $ ls
+admission-plugins  filesystem  kube-apiserver.yaml.bk  snap  test
+
+controlplane $ vim /etc/kubernetes/manifests/kube-apiserver.yaml  
+...
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=172.30.1.2
+    - --allow-privileged=true
+    - --authorization-mode=Node,RBAC
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --enable-admission-plugins=NodeRestriction,LimitRanger,Priority,**MutatingAdmissionWebhook** 添加此筆
+
+
+
+controlplane $ **watch crictl ps** 指令檢查 kube-apiserver是否重啟
+
+watch crictl ps 這個指令實際上是兩個命令的組合：
+
+crictl ps：這是 crictl（Container Runtime Interface CLI）的 ps 子命令，作用類似於 docker ps，用來列出目前正在運行的容器。
+watch：這是一個 Linux 命令，它會定期執行指定的命令，並將結果動態更新顯示在終端中。
+
+CONTAINER           IMAGE               CREATED             STATE               NAME                      ATTEMPT             POD ID              POD
+8db879ef0a61c       604f5db92eaa8       10 seconds ago      Running             kube-apiserver            0                   d8bd0f96ab557       **kube-apiserver-controlplane**
+525ca9c47102b       045733566833c       47 seconds ago      Running             kube-controller-manager   3                   a9798bdd0cddf       kube-controller-manager-controlplane
+32ca7cd43db39       1766f54c897f0       48 seconds ago      Running             kube-scheduler            3                   d6b2a83e241ba       kube-scheduler-controlplane
+e28a21f9c9751       e23e2f5fff2ac       51 minutes ago      Running             local-path-provisioner    1                   b26b3f6d70dbe       local-path-provisioner-6c5cff8948-kk2zd
+7e7301d33b915       f9c3c1813269c       51 minutes ago      Running             calico-kube-controllers   1                   33dae922d0f3b       calico-kube-controllers-94fb6bc47-tnb2w
+035f19bd0f61e       cbb01a7bd410d       51 minutes ago      Running             coredns                   1                   0899425bd7726       coredns-57888bfdc7-nxl9k
+ce01e91ef27a9       cbb01a7bd410d       51 minutes ago      Running             coredns                   1                   112b97e4defb5       coredns-57888bfdc7-v8fgp
+d318ceaf19c8a       e6ea68648f0cd       52 minutes ago      Running             kube-flannel              1                   f03bea9c50e91       canal-ts95q
+7135c6bd5516a       75392e3500e36       52 minutes ago      Running             calico-node               1                   f03bea9c50e91       canal-ts95q
+487b9c72b9bb7       ad83b2ca7b09e       52 minutes ago      Running             kube-proxy                1                   21f8d8afb25d3       kube-proxy-7j5n6
+c4c0f625eaa0b       2e96e5913fc06       52 minutes ago      Running             etcd                      1                   5353a66b65b73       etcd-controlplane
+
+
+Delete Namespace space1 .
+Delete Namespace default (throws error)
+
+Disable the Admission Controller Plugin NamespaceLifecycle . It's not recommended to do this at all, we just do this for showing the effect.
+
+It can take a few minutes for the apiserver container to restart after changing the manifest. You can watch using watch crictl ps .
+
+Now delete Namespace default .
+
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=172.30.1.2
+    - --allow-privileged=true
+    - --authorization-mode=Node,RBAC
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --enable-admission-plugins=NodeRestriction,LimitRanger,Priority,MutatingAdmissionWebhook
+    - **--disable-admission-plugins=NamespaceLifecycle**  添加此筆
+
+
+ 
+同樣執行 watch crictl ps 指令檢查kube-apiserver是否已重啟
+controlplane $ watch crictl ps
+
+CONTAINER           IMAGE               CREATED                  STATE               NAME                      ATTEMPT             POD ID              POD
+e43b8ec7219b2       604f5db92eaa8       **Less than a second ago**   Running             kube-apiserver            0                   788462f8991f1       kube-apiserver-
+controlplane
+8d3e04d87db8d       045733566833c       28 seconds ago           Running             kube-controller-manager   4                   a9798bdd0cddf       kube-controller
+-manager-controlplane
+5e8dc760796c0       1766f54c897f0       28 seconds ago           Running             kube-scheduler            4                   d6b2a83e241ba       kube-scheduler-
+controlplane
+e28a21f9c9751       e23e2f5fff2ac       About an hour ago        Running             local-path-provisioner    1                   b26b3f6d70dbe       local-path-prov
+isioner-6c5cff8948-kk2zd
+7e7301d33b915       f9c3c1813269c       About an hour ago        Running             calico-kube-controllers   1                   33dae922d0f3b       calico-kube-con
+trollers-94fb6bc47-tnb2w
+035f19bd0f61e       cbb01a7bd410d       About an hour ago        Running             coredns                   1                   0899425bd7726       coredns-57888bf
+dc7-nxl9k
+ce01e91ef27a9       cbb01a7bd410d       About an hour ago        Running             coredns                   1                   112b97e4defb5       coredns-57888bf
+dc7-v8fgp
+d318ceaf19c8a       e6ea68648f0cd       About an hour ago        Running             kube-flannel              1                   f03bea9c50e91       canal-ts95q
+7135c6bd5516a       75392e3500e36       About an hour ago        Running             calico-node               1                   f03bea9c50e91       canal-ts95q
+487b9c72b9bb7       ad83b2ca7b09e       About an hour ago        Running             kube-proxy                1                   21f8d8afb25d3       kube-proxy-7j5n
+6
+c4c0f625eaa0b       2e96e5913fc06       About an hour ago        Running             etcd                      1                   5353a66b65b73       etcd-controlp
+
+
+添加disable plugins之後，重新刪除default namespace, 發現可以刪除且不報錯:
+controlplane $ k get ns
+NAME                 STATUS   AGE
+default              Active   6d3h
+kube-node-lease      Active   6d3h
+kube-public          Active   6d3h
+kube-system          Active   6d3h
+local-path-storage   Active   6d3h
+space2               Active   27m
+
+controlplane $ k delete ns default 
+namespace "default" deleted
+controlplane $ k get ns
+NAME                 STATUS   AGE
+kube-node-lease      Active   6d3h
+kube-public          Active   6d3h
+kube-system          Active   6d3h
+local-path-storage   Active   6d3h
+space2               Active   27m
+
+
 ### Api Deprecations
 
 Checked the installed K8s version:
@@ -1204,4 +1392,3 @@ spec:
             - date
           restartPolicy: OnFailure
 
-EE
