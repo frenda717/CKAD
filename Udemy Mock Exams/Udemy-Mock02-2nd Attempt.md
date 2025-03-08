@@ -273,9 +273,7 @@
     Create a pod with name pod21-ckad-svcn using the nginx:alpine image in the default namespace and also expose the pod using service pod21-ckad-svcn on port 80.
     Note: Use the imperative command for above scenario.
 
-4.  題目有bug:
-
-
+4.  CrashLoopBackOff:
 
     student-node ~ ➜  cat ckad15-memory.yaml 
     apiVersion: v1
@@ -363,7 +361,7 @@
         Started:      Mon, 24 Feb 2025 20:01:25 +0000
         Finished:     Mon, 24 Feb 2025 20:01:25 +0000
         Last State:     Terminated
-        Reason:       Completed
+        **Reason:       Completed**
         Exit Code:    0
         Started:      Mon, 24 Feb 2025 20:01:10 +0000
         Finished:     Mon, 24 Feb 2025 20:01:10 +0000
@@ -412,6 +410,10 @@
     error: unable to upgrade connection: container not found ("ckad15-memory")
 
     Pod 已經 CrashLoopBackOff，無法執行 exec
+
+    見Udemy-Mock03.md 第04題，同樣解法。
+
+
 
 07. Solution
     Run the following command to change the context: -

@@ -1,7 +1,8 @@
 First Attempt Score:  54%
 答對: 03,04,06,09,13~16,18~21
+錯題: 01,02,05,07,08,10,11,12,17
 
-不熟的Topic: 02 (Persistent Volume回收機制)
+不熟的Topic: 02 (Persistent Volume回收機制) 08 (Helm uninstall 之後檢查是否有殘留資源)
 應該不會考: 建立Ingress Controller (11)
 
 ### SECTION: APPLICATION DESIGN AND BUILD
@@ -15,16 +16,16 @@ First Attempt Score:  54%
     apiVersion: v1
     kind: Pod
     metadata:
-    creationTimestamp: null
-    labels:
-        run: ckad-httpd-bwutlljzof
-    name: ckad-httpd-bwutlljzof
-    namespace: ckad-pod-design
-    spec:
-    containers:
-    - image: httpd:alpine
+        creationTimestamp: null
+        labels:
+            run: ckad-httpd-bwutlljzof
         name: ckad-httpd-bwutlljzof
-        resources: {}
+        namespace: ckad-pod-design
+    spec:
+        containers:
+            - image: httpd:alpine
+            name: ckad-httpd-bwutlljzof
+            resources: {}
     dnsPolicy: ClusterFirst
     restartPolicy: Always
     status: {}
@@ -35,23 +36,23 @@ First Attempt Score:  54%
     apiVersion: v1
     kind: Pod
     metadata:
-    creationTimestamp: null
-    labels:
-        run: ckad-httpd-bwutlljzof
-    name: ckad-httpd-bwutlljzof
-    namespace: ckad-pod-design
-    spec:
-    containers:
-    - image: httpd:alpine
+        creationTimestamp: null
+        labels:
+            run: ckad-httpd-bwutlljzof
         name: ckad-httpd-bwutlljzof
-        ports:
-        - **containerPort: 8080**
-        resources: {}
+        namespace: ckad-pod-design
+    spec:
+        containers:
+        - image: httpd:alpine
+            name: ckad-httpd-bwutlljzof
+            ports:
+            - **containerPort: 8080**
+            resources: {}
     dnsPolicy: ClusterFirst
     restartPolicy: Always
     status: {}
 
-02. A persistent volume called papaya-pv-ckad09-str is already created with a storage capacity of 150Mi. It's using the papaya-stc-ckad09-str storage class with the path /opt/papaya-stc-ckad09-str.
+02. (**PV狀態為Released時應刪除重建以恢復到Available，使pvc可以綁定**) A persistent volume called papaya-pv-ckad09-str is already created with a storage capacity of 150Mi. It's using the papaya-stc-ckad09-str storage class with the path /opt/papaya-stc-ckad09-str.
 
     Also, a persistent volume claim named papaya-pvc-ckad09-str has been created on this cluster. This PVC has requested 50Mi of storage from papaya-pv-ckad09-str volume.
 
@@ -72,8 +73,8 @@ First Attempt Score:  54%
     papaya-pvc-ckad09-str   Lost     papaya-pv-ckad09-str   0                         papaya-stc-ckad09-str   <unset>                 119s
 
     student-node ~ ➜  k get pv
-    NAME                   CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS     CLAIM                           STORAGECLASS            VOLUMEATTRIBUTESCLASS   REASON   AGE
-    papaya-pv-ckad09-str   150Mi      RWO            Retain           Released   default/papaya-pvc-ckad09-str   papaya-stc-ckad09-str   <unset>                          6s
+    NAME                   CAPACITY   ACCESS MODES   RECLAIM POLICY     STATUS     CLAIM                           STORAGECLASS            VOLUMEATTRIBUTESCLASS   REASON   AGE
+    papaya-pv-ckad09-str   150Mi      RWO            Retain           **Released**   default/papaya-pvc-ckad09-str   papaya-stc-ckad09-str   <unset>                          6s
 
     為何直接修改pvc的resource request, 重啟後pvc 為Lost
 
@@ -83,6 +84,44 @@ First Attempt Score:  54%
     NAME                    PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
     local-path (default)    rancher.io/local-path          Delete          WaitForFirstConsumer   false                  139m
     papaya-stc-ckad09-str   kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   true                   117m
+
+    正確的解決步驟:
+    1️⃣ 刪除舊的 PVC
+    PVC 可能仍然持有舊的綁定資訊，所以我們應該先刪除它：
+
+    kubectl delete pvc papaya-pvc-ckad09-str
+    2️⃣ 刪除並重新創建 PV
+    PV 處於 Released 狀態，需要手動刪除並重新創建：
+    kubectl delete pv papaya-pv-ckad09-str
+    然後重新創建 PV，確認 PV 的狀態是否為 Available
+
+    3️⃣ 重新創建 PVC，請求 80Mi
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+    name: papaya-pvc-ckad09-str
+    spec:
+        accessModes:
+            - ReadWriteOnce
+        resources:
+            requests:
+            storage: 80Mi
+        storageClassName: papaya-stc-ckad09-str
+
+    kubectl apply -f papaya-pvc-ckad09-str.yaml
+   
+    4️⃣ 檢查 PVC 是否成功綁定
+    執行：
+    kubectl get pvc
+    確認 PVC 狀態為 Bound。
+
+    如果 PVC 仍然是 Pending 或 Lost，請再次檢查：
+    kubectl describe pvc papaya-pvc-ckad09-str
+    
+    看是否有錯誤資訊，例如：
+    沒有可用的 PV ➝ 確保 storageClassName 和 storage 大小匹配
+    PV 仍然是 Released ➝ 確保 PV 處於 Available 狀態
+
 
     Solution:
 
@@ -186,7 +225,7 @@ First Attempt Score:  54%
     cloudstack-pvc   Bound    cloudstack-pv   128Mi      RWO                           <unset>                 3s
 
 
-05. (Cronjob schedule錯誤) In the ckad-job namespace, schedule a job called learning-every-hour that prints this message in the shell every hour at 0 minutes: I will pass CKAD certification.
+05. (Cronjob schedule錯誤) In the ckad-job namespace, schedule a job called learning-every-hour that prints this message in the shell **every hour at 0 minutes**: I will pass CKAD certification.
 
     In case the container in pod failed for any reason, it should be restarted automatically.
 
@@ -218,7 +257,7 @@ First Attempt Score:  54%
                 command: ["/bin/sh","-c",echo "I will pass CKAD certification"]
                 resources: {}
             restartPolicy: OnFailure
-    schedule: ~~'* */1 * * *'~~ # **1 hr 就是 60 min, 設置在min 欄位!!**
+    schedule: ~~'* */1 * * *'~~ # **'* */1 * * *' 這個表達式的第一個 * 代表「分鐘」，而 */1 代表「每 1 小時執行一次」。這樣的配置會導致 CronJob 在每分鐘的 0 秒開始執行一次，而不只是每小時執行一次，這不是你想要的結果。!!**
     status: {}
 
     Solution
@@ -230,20 +269,20 @@ First Attempt Score:  54%
     namespace: ckad-job
     name: learning-every-hour
     spec:
-    schedule: "0 * * * *"
-    jobTemplate:
-        spec:
-        template:
+        schedule: **"0 * * * *"**
+        jobTemplate:
             spec:
-            containers:
-            - name: learning-every-hour
-                image: alpine
-                imagePullPolicy: IfNotPresent
-                command:
-                - /bin/sh
-                - -c
-                - echo I will pass CKAD certification
-            restartPolicy: OnFailure
+                template:
+                    spec:
+                        containers:
+                        - name: learning-every-hour
+                            image: alpine
+                            imagePullPolicy: IfNotPresent
+                            command:
+                            - /bin/sh
+                            - -c
+                            - echo I will pass CKAD certification
+                restartPolicy: OnFailure
 
 
 
@@ -296,7 +335,7 @@ First Attempt Score:  54%
 
 
 
-07. One co-worker deployed an nginx helm chart on the cluster3 server called lvm-crystal-apd. A new update is pushed to the helm chart, and the team wants you to update the helm repository to fetch the new changes.
+07. (helm upgrade --set replicaCount) One co-worker deployed an nginx helm chart on the cluster3 server called lvm-crystal-apd. A new update is pushed to the helm chart, and the team wants you to update the helm repository to fetch the new changes.
     
     After updating the helm chart, upgrade the helm chart version to 18.1.15 and increase the replica count to 2.
 
@@ -317,81 +356,47 @@ First Attempt Score:  54%
     NAME            NAMESPACE       REVISION        UPDATED                                 STATUS      CHART            APP VERSION
     lvm-crystal-apd crystal-apd-ns  1               2025-02-28 04:37:23.46649879 +0000 UTC  deployed    nginx-18.1.0     1.27.0     
 
+    
     Solution:
     Run the following command to change the context: -
-
-
     kubectl config use-context cluster3
 
-
-
     In this task, we will use the kubectl and helm commands. Here are the steps: -
-
-
-
     Log in to the cluster3-controlplane node first and use the helm ls command to list all the releases installed using Helm in the Kubernetes cluster.
 
     helm ls -A
-
-
-
     Here -A or --all-namespaces option lists all the releases of all the namespaces.
 
-
-
     Identify the namespace where the resources get deployed.
-
-
     Use the helm repo ls command to list the helm repositories.
-    helm repo ls 
-
-
+    **helm repo ls** 
 
     Now, update the helm repository with the following command: -
-
-    helm repo update lvm-crystal-apd -n crystal-apd-ns
-
-
+    **helm repo update lvm-crystal-apd -n crystal-apd-ns**
 
     The above command updates the local cache of available charts from the configured chart repositories.
 
-
-
     The helm search command searches for all the available charts in a specific Helm chart repository. In our case, it's the nginx helm chart.
-    helm search repo lvm-crystal-apd/nginx -n crystal-apd-ns -l | head -n30
-
-
-
+    **helm search repo lvm-crystal-apd/nginx -n crystal-apd-ns -l | head -n30**
     The -l or --versions option is used to display information about all available chart versions.
 
-
-
     Upgrade the helm chart to 18.1.15 and also, increase the replica count of the deployment to 2 from the command line. Use the helm upgrade command as follows: -
-
-    helm upgrade lvm-crystal-apd lvm-crystal-apd/nginx -n crystal-apd-ns --version=18.1.15 --set replicaCount=2
-
-
+    **helm upgrade lvm-crystal-apd lvm-crystal-apd/nginx -n crystal-apd-ns --version=18.1.15 --set replicaCount=2**
 
     After upgrading the chart version, you can verify it with the following command: -
-
     helm ls -n crystal-apd-ns
 
-
-
     Look under the CHART column for the chart version.
-
-
-
     Use the kubectl get command to check the replicas of the deployment: -
     kubectl get deploy -n crystal-apd-ns
 
-
-
     The available count 2 is under the AVAILABLE column.
+
+
 
 ### SECTION: APPLICATION DEPLOYMENT
 
-08. One application, webpage-server-01, is deployed on the Kubernetes cluster by the Helm tool. Now, the team wants to deploy a new version of the application by replacing the existing one. A new version of the helm chart is given in the /root/new-version directory on the student-node. Validate the chart before installing it on the Kubernetes cluster. 
+08. (helm **Uninstall之後可能有殘留的資源!! 善用k delete all -l <label> or helm uninstall --no-hooks**) One application, webpage-server-01, is deployed on the Kubernetes cluster by the Helm tool. Now, the team wants to deploy a new version of the application by replacing the existing one. A new version of the helm chart is given in the /root/new-version directory on the student-node. Validate the chart before installing it on the Kubernetes cluster. 
 
     Use the helm command to validate and install the chart. After successfully installing the newer version, uninstall the older version. 
 
@@ -425,6 +430,9 @@ First Attempt Score:  54%
     student-node ~ ✖ helm install webpage-server-01 /root/new-version/
     Error: INSTALLATION FAILED: cannot re-use a name that is still in use
 
+    **可以使用--generate-name 讓helm 自動幫取一個新的release name:**
+    **helm install --generate-name ./new-version**
+
     student-node ~ ✖ helm install webpage-server-01-new /root/new-version/
     NAME: webpage-server-01-new
     LAST DEPLOYED: Fri Feb 28 06:00:08 2025
@@ -442,36 +450,44 @@ First Attempt Score:  54%
     webpage-server-01-new   default         1               2025-02-28 06:00:08.240527456 +0000 UTC deployed     webpage-server-02-0.1.1 v2         
 
     student-node ~ ➜  helm uninstall webpage-server-01
-    release "webpage-server-01" uninstalled
+    release "webpage-server-01" uninstalled # 被判斷為沒有成功刪除
+    
+    **即使 helm uninstall 成功，Kubernetes 可能還殘留相關的 Pod、Service、ConfigMap 等資源。你可以手動確認**：
+    kubectl get all -n default | grep webpage-server-01
+    
+    如果仍有資源，你可能需要手動刪除：
+    **kubectl delete all -l app=webpage-server-01** -n default
 
-    Solution
+    **也有可能helm uninstall 操作實際上沒有執行**
+    
+    你可以檢查 Helm 的歷史記錄：
+    **helm history webpage-server-01 -n default**
+    
+    如果仍然有紀錄，說明 helm uninstall 沒有正確執行。你可以**強制刪除**：
+    helm uninstall webpage-server-01 -n default **--no-hooks**
+
+
+    
+    Solution:
 
     Run the following command to change the context: -
     kubectl config use-context cluster1
 
-
     In this task, we will use the helm commands. Here are the steps: -
-
     Use the helm ls command to list the release deployed on the default namespace using helm.
     helm ls -n default
 
-
-
     First, validate the helm chart by using the helm lint command: -
     cd /root/
-    helm lint ./new-version # 
+    **helm lint ./new-version** # 這步驟有做
 
     Now, install the new version of the application by using the helm install command as follows: -
-    helm install --generate-name ./new-version
+    **helm install --generate-name ./new-version**
 
-    We haven't got any release name in the task, so we can generate the random name from the --generate-name option.
-
+    We haven't got any release name in the task, so we can **generate the random name from the --generate-name option**.
 
     Finally, uninstall the old version of the application by using the helm uninstall command: -
-
     helm uninstall webpage-server-01 -n default # 這步驟有做
-
-
 
     Details
     O Is the new version app deployed? 
@@ -479,10 +495,11 @@ First Attempt Score:  54%
 
 
 
-10. In the dev-apd namespace, one of the developers has performed a rolling update and upgraded the application to a newer version. But somehow, application pods are not being created.
+
+09. (沒有在指定的節點上操作!!!) In the dev-apd namespace, one of the developers has performed a rolling update and upgraded the application to a newer version. But somehow, application pods are not being created.
     To regain the working state, rollback the application to the previous version.
 
-    After rolling the deployment back, on the controlplane node, save the image currently in use to the /root/records/rolling-back-record.txt file and increase the replica count to 3.
+    After rolling the deployment back, ****on the controlplane node****, **save the image currently in use to the /root/records/**rolling-back-record.txt file and increase the replica count to 3.
 
     You can SSH into the cluster2 using ssh cluster2-controlplane command.
 
@@ -559,11 +576,29 @@ First Attempt Score:  54%
     student-node ~ ➜  cat /root/records/rolling-back-record.txt
         Image:         kodekloud/webapp-color
 
+    題目要求：
+
+    ssh cluster2-controlplane
+    echo "kodekloud/webapp-color" > /root/records/rolling-back-record.txt
+    但你的解法中，kubectl describe 是直接在 學生節點 (student-node) 上執行的，而非在 cluster2-controlplane 節點上執行。
+
+    解決方案
+    如果還沒執行這一步，請進入 cluster2-controlplane 並重新執行：
+    ssh cluster2-controlplane
+    echo "kodekloud/webapp-color" > /root/records/rolling-back-record.txt
+    然後再檢查：
+    ssh cluster2-controlplane
+    cat /root/records/rolling-back-record.txt
+    確認內容是否正確。
+
+
+
+
     student-node ~ ➜  k edit deploy -n dev-apd webapp-apd 
     deployment.apps/webapp-apd edited
 
     student-node ~ ➜  k get deploy -n dev-apd webapp-apd
-    NAME         READY   UP-TO-DATE   AVAILABLE   AGE
+    NAME          READY   UP-TO-DATE   AVAILABLE   AGE
     webapp-apd   3/3     3            3           4m34s
 
     
@@ -573,26 +608,18 @@ First Attempt Score:  54%
     kubectl config use-context cluster2
 
 
-
     In this task, we will use the kubectl describe, kubectl get, kubectl rollout and kubectl scale commands. Here are the steps: -
 
     First check the status of the pods: -
     kubectl get pods -n dev-apd
 
-
-
     One of the pods is in an error state. By using the kubectl describe command. We can see that there is an issue with the image.
-
     We can check the revision history of a deployment by using the kubectl history command as follows: -
-
     kubectl rollout history -n dev-apd deploy webapp-apd  
 
 
     Inspect the revision in detail as follows: -
-
     kubectl rollout history -n dev-apd deploy webapp-apd --revision=2
-
-
 
     We found that the image issue happened because of the wrong image tag, and the previous image was correct. As a quick fix, we need to roll back to the previous revision. Use the kubectl rollout command: -
     kubectl rollout undo -n dev-apd deploy webapp-apd
@@ -600,29 +627,23 @@ First Attempt Score:  54%
     After successful rolling back, inspect the updated image: -
     kubectl describe deploy -n dev-apd webapp-apd | grep -i image
 
-
     On the Controlplane node, save the image name to the given path /root/records/rolling-back-record.txt: -
     ssh cluster2-controlplane
     echo "kodekloud/webapp-color" > /root/records/rolling-back-record.txt
 
 
-
     If the records directory is absent, use the mkdir command to create this directory.
-
     NOTE: - To exit from any node, type exit on the terminal or press CTRL + D.
 
     And increase the replica count to the 3 with help of kubectl scale command: -
-
     kubectl scale deploy -n dev-apd webapp-apd --replicas=3
-
-
 
     Verify it by running the command: kubectl get deploy -n dev-apd
 
 
 ### SECTION: SERVICES AND NETWORKING
 
-11. (建立 Ingress Controller) For this scenario, create an ingress controller.
+11. (配置文件debug得太慢!) For this scenario, create an ingress controller.
     We have already deployed some of the required resources (Namespaces, Service accounts, Roles and Rolebindings).
 
     Your task is to create the Ingress controller Deployment using the manifest given at /root/nginx-controller.yaml. There are some issues in the configuration. Please find the issues and fix them.
@@ -669,14 +690,13 @@ First Attempt Score:  54%
     student-node ~ ➜  vim nginx-controller.yaml
 
     student-node ~ ➜  ka nginx-controller.yaml
-    Error from server (BadRequest): error when creating "nginx-controller.yaml": deployment in version "v1" cannot be handled as a Deployment: no kind "deployment" is registered for version "apps/v1" in scheme "k8s.io/apimachinery@v1.29.0-k3s1/pkg/runtime/scheme.go:100"
+    Error from server (BadRequest): error when creating "nginx-controller.yaml": deployment in version "v1" cannot be handled as a Deployment: **no kind "deployment"** is registered for version "apps/v1" in scheme "k8s.io/apimachinery@v1.29.0-k3s1/pkg/runtime/scheme.go:100"
 
+    **應為大寫: Deployment**
 
     Solution:
 
     Use cat command to view the contents of the file. cat /root/nginx-controller.yaml
-
-
 
     Please check the apiVersion, resource kind, namespace and the container port sections
     apiVersion: apps/betav1 #wrong api version
@@ -691,105 +711,105 @@ First Attempt Score:  54%
     name: ingress-nginx-controller
     namespace: ingressnginx  #issue1 ingress-nginx
     spec:
-    minReadySeconds: 0
-    revisionHistoryLimit: 10
-    selector:
-        matchLabels:
-        app.kubernetes.io/component: controller
-        app.kubernetes.io/instance: ingress-nginx
-        app.kubernetes.io/name: ingress-nginx
-    template:
-        metadata:
-        labels:
+        minReadySeconds: 0
+        revisionHistoryLimit: 10
+        selector:
+            matchLabels:
             app.kubernetes.io/component: controller
             app.kubernetes.io/instance: ingress-nginx
             app.kubernetes.io/name: ingress-nginx
-        spec:
-        containers:
-        - args:
-            - /nginx-ingress-controller
-            - --publish-service=/ingress-nginx-controller
-            - --election-id=ingress-nginx-leader
-            - --controller-class=k8s.io/ingress-nginx
-            - --ingress-class=nginx
-            - --configmap=/ingress-nginx-controller
-            - --validating-webhook=:8443
-            - --validating-webhook-certificate=/usr/local/certificates/cert
-            - --validating-webhook-key=/usr/local/certificates/key
-            env:
-            - name: POD_NAME
-            valueFrom:
-                fieldRef:
-                fieldPath: metadata.name
-            - name: POD_NAMESPACE
-            valueFrom:
-                fieldRef:
-                fieldPath: metadata.namespace
-            - name: LD_PRELOAD
-            value: /usr/local/lib/libmimalloc.so
-            image: registry.k8s.io/ingress-nginx/controller:v1.6.4@sha256:15be4666c53052484dd2992efacf2f50ea77a78ae8aa21ccd91af6baaa7ea22f
-            imagePullPolicy: IfNotPresent
-            lifecycle:
-            preStop:
-                exec:
-                command:
-                - /wait-shutdown
-            livenessProbe:
-            failureThreshold: 5
-            httpGet:
-                path: /healthz
-                port: 10254
-                scheme: HTTP
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-            name: controller
-            ports:
-            -    containerPort: 80 #wrong indentation 
-            name: http
-            protocol: TCP
-            - containerPort: 443
-            name: https
-            protocol: TCP
-            - containerPort: 8443
-            name: webhook
-            protocol: TCP
-            readinessProbe:
-            failureThreshold: 3
-            httpGet:
-                path: /healthz
-                port: 10254
-                scheme: HTTP
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-            resources:
-            requests:
-                cpu: 100m
-                memory: 90Mi
-            securityContext:
-            allowPrivilegeEscalation: true
-            capabilities:
-                add:
-                - NET_BIND_SERVICE
-                drop:
-                - ALL
-            runAsUser: 101
-            volumeMounts:
-            - mountPath: /usr/local/certificates/
-            name: webhook-cert
-            readOnly: true
-        dnsPolicy: ClusterFirst
-        nodeSelector:
-            kubernetes.io/os: linux
-        serviceAccountName: ingress-nginx
-        terminationGracePeriodSeconds: 300
-        volumes:
-        - name: webhook-cert
-            secret:
-            secretName: ingress-nginx-admission
+        template:
+            metadata:
+            labels:
+                app.kubernetes.io/component: controller
+                app.kubernetes.io/instance: ingress-nginx
+                app.kubernetes.io/name: ingress-nginx
+            spec:
+            containers:
+            - args:
+                - /nginx-ingress-controller
+                - --publish-service=/ingress-nginx-controller
+                - --election-id=ingress-nginx-leader
+                - --controller-class=k8s.io/ingress-nginx
+                - --ingress-class=nginx
+                - --configmap=/ingress-nginx-controller
+                - --validating-webhook=:8443
+                - --validating-webhook-certificate=/usr/local/certificates/cert
+                - --validating-webhook-key=/usr/local/certificates/key
+                env:
+                - name: POD_NAME
+                valueFrom:
+                    fieldRef:
+                    fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                valueFrom:
+                    fieldRef:
+                    fieldPath: metadata.namespace
+                - name: LD_PRELOAD
+                value: /usr/local/lib/libmimalloc.so
+                image: registry.k8s.io/ingress-nginx/controller:v1.6.4@sha256:15be4666c53052484dd2992efacf2f50ea77a78ae8aa21ccd91af6baaa7ea22f
+                imagePullPolicy: IfNotPresent
+                lifecycle:
+                preStop:
+                    exec:
+                    command:
+                    - /wait-shutdown
+                livenessProbe:
+                failureThreshold: 5
+                httpGet:
+                    path: /healthz
+                    port: 10254
+                    scheme: HTTP
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 1
+                name: controller
+                ports:
+                -    containerPort: 80 #wrong indentation 
+                name: http
+                protocol: TCP
+                - containerPort: 443
+                name: https
+                protocol: TCP
+                - containerPort: 8443
+                name: webhook
+                protocol: TCP
+                readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                    path: /healthz
+                    port: 10254
+                    scheme: HTTP
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 1
+                resources:
+                requests:
+                    cpu: 100m
+                    memory: 90Mi
+                securityContext:
+                allowPrivilegeEscalation: true
+                capabilities:
+                    add:
+                    - NET_BIND_SERVICE
+                    drop:
+                    - ALL
+                runAsUser: 101
+                volumeMounts:
+                - mountPath: /usr/local/certificates/
+                name: webhook-cert
+                readOnly: true
+            dnsPolicy: ClusterFirst
+            nodeSelector:
+                kubernetes.io/os: linux
+            serviceAccountName: ingress-nginx
+            terminationGracePeriodSeconds: 300
+            volumes:
+            - name: webhook-cert
+                secret:
+                secretName: ingress-nginx-admission
 
 
 
@@ -1034,7 +1054,7 @@ First Attempt Score:  54%
     ckad01-webapp-pod-aecs   1/1     Running   0          7s
 
 
-17. Create a role named pod-reader in the ckad17-auth-ns namespace, and grant only the list, watch and get permissions on pods resources.
+17. (RoleBinding參數有遺漏) Create a role named pod-reader in the ckad17-auth-ns namespace, and grant only the list, watch and get permissions on pods resources.
 
     Create a role binding named read-pods in the same namespace, and assign the pod-reader role to a user named jane.
 
