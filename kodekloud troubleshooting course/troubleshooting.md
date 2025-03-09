@@ -624,22 +624,644 @@
     ![k9S visualization](images/debug/k9s-pulse "k9S Visualization")
 
 ### Troubleshooting Scenario
+!! 倘若k describe deploy/pods 下的events 沒有輸出任何有用提示，則善用k get events指令 來獲取相關的events!!
+
 1. Imageg Pull Errors
 
+    image pull 的幾種情況:
+    i. image name typo
+    ii. Pod Events 內顯示: 401 Unauthorized， 可能有secrets 但是pod沒有定義imagePullSecret參數
 
-2. Crashing Pods
+    ![ImagePullError: 401](images/debug/imagePull.png "ImagePullError: 401")
+
+    ![ImagePullError: 401](images/debug/imagePull02.png "ImagePullError: 401")
+
+    iii. Pod Events 內顯示: no such host，則使用nslookup 指令檢查host是否存在(此題CKAD應不會考)
+
+    ![ImagePullError: 401](images/debug/imagePull03.png "ImagePullError: 401")
+
+    ![ImagePullError: 401](images/debug/imagePull04.png "ImagePullError: 401")
 
 
-3. Pending Pods 
+    What does the ErrImagePull error indicate in a Kubernetes environment?
+    Answer: Kubernetes is unable to pull the container image from the registry.
 
 
-4. Missing Pods
+    What is the primary purpose of using imagePullSecrets in a pod definition file?
+    Answer: To provide Kubernets with the credentials to pull a private container image.
 
 
-5. Deployment
+    You’re in a production environment investigating an issue with the app pod. What seems to be the problem?
+    Pods can be in any of the namespaces
+
+    controlplane ~ ➜  k get pod -A| grep app
+    production    app                                    0/1     ErrImagePull   0             34s
+    production    webapp-75f4b589fd-95sgk                1/1     Running        0             80s
+
+    controlplane ~ ➜  k describe pod -n production app 
+    ...
+    Events:
+    Type     Reason     Age                From               Message
+    ----     ------     ----               ----               -------
+    Normal   Scheduled  59s                default-scheduler  Successfully assigned production/app to node01
+    Normal   BackOff    27s (x2 over 57s)  kubelet            Back-off pulling image "docker.io/nicholasaaronbrady/testnode:latest"
+    Warning  Failed     27s (x2 over 57s)  kubelet            Error: ImagePullBackOff
+    Normal   Pulling    16s (x3 over 58s)  kubelet            Pulling image "docker.io/nicholasaaronbrady/testnode:latest"
+    Warning  Failed     16s (x3 over 57s)  kubelet            Failed to pull image "docker.io/nicholasaaronbrady/testnode:latest": failed to pull and unpack image "docker.io/nicholasaaronbrady/testnode:latest": failed to resolve reference "docker.io/nicholasaaronbrady/testnode:latest": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+    Warning  Failed     16s (x3 over 57s)  kubelet            Error: ErrImagePull
+
+
+    Answer: Pulling a private image without credentials
+
+
+    We have just identified a pod misconfigured-pod attempting to pull an image nginx:latest . Identify and fix the problem.
+    Pods can be in any of the namespaces
+
+    controlplane ~ ➜  k get pod 
+    NAME                READY   STATUS         RESTARTS   AGE
+    misconfigured-pod   0/1     ErrImagePull   0          13s
+
+    controlplane ~ ➜  k describe pod misconfigured-pod
+    ...
+    Events:
+    Type     Reason     Age                From               Message
+    ----     ------     ----               ----               -------
+    Normal   Scheduled  25s                default-scheduler  Successfully assigned default/misconfigured-pod to node01
+    Normal   BackOff    23s                kubelet            Back-off pulling image "ngninx:latest"
+    Warning  Failed     23s                kubelet            Error: ImagePullBackOff
+    Normal   Pulling    10s (x2 over 24s)  kubelet            Pulling image "ngninx:latest"
+    Warning  Failed     10s (x2 over 24s)  kubelet            Failed to pull image "ngninx:latest": failed to pull and unpack image "docker.io/library/ngninx:latest": failed to resolve reference "docker.io/library/ngninx:latest": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+    
+    controlplane ~ ➜  vim misconfigured-pod.yaml 
+    (更改image typo)
+
+    controlplane ~ ✖ k replace -f misconfigured-pod.yaml --force
+    pod "misconfigured-pod" deleted
+    pod/misconfigured-pod replaced
+
+    controlplane ~ ➜  k get pod
+    NAME                READY   STATUS              RESTARTS   AGE
+    misconfigured-pod   0/1     ContainerCreating   0          3s
+
+    controlplane ~ ➜  k get pod
+    NAME                READY   STATUS    RESTARTS   AGE
+    misconfigured-pod   1/1     Running   0          10s
+
+
+    In a production environment, you have an existing application deployment webapp with kodekloud/webapp-color:v1 pod running smoothly in your cluster. However, during a routine update to kodekloud/webapp-color:v2, you encounter an ErrImagePull error when trying to deploy the updated version. Investigate and resolve the issue.
+
+    Manifest file for webapp deployment is present at /root/webapp-deployment.yaml
+    Deployment can be in any of the namespaces
+
+    controlplane ~ ➜  k get pod -n production 
+    NAME                      READY   STATUS             RESTARTS   AGE
+    webapp-75f4b589fd-95sgk   1/1     Running            0          8m3s
+    webapp-79cc5d9d98-6b9bt   0/1     ImagePullBackOff   0          22s
+
+    controlplane ~ ➜  k get deploy -n production 
+    NAME     READY   UP-TO-DATE   AVAILABLE   AGE
+    webapp   1/1     1            1           8m15s
+
+    controlplane ~ ➜  k describe pod -n production webapp-79cc5d9d98-6b9bt 
+    ...
+    Events:
+    Type     Reason     Age                 From               Message
+    ----     ------     ----                ----               -------
+    Normal   Scheduled  117s                default-scheduler  Successfully assigned production/webapp-79cc5d9d98-6b9bt to node01
+    Normal   Pulling    28s (x4 over 116s)  kubelet            Pulling image "docker.io/kodekloud/webapp-color:vv2"
+    Warning  Failed     28s (x4 over 116s)  kubelet            Failed to pull image "docker.io/kodekloud/webapp-color:vv2": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/kodekloud/webapp-color:vv2": failed to resolve reference "docker.io/kodekloud/webapp-color:vv2": docker.io/kodekloud/webapp-color:vv2: not found
+    Warning  Failed     28s (x4 over 116s)  kubelet            Error: ErrImagePull
+    Normal   BackOff    5s (x7 over 115s)   kubelet            Back-off pulling image "docker.io/kodekloud/webapp-color:vv2"
+    Warning  Failed     5s (x7 over 115s)   kubelet            Error: ImagePullBackOff
+
+
+    controlplane ~ ➜  vim webapp-deployment.yaml  (修改vv2 為v2)
+
+    controlplane ~ ➜  k replace -f webapp-deployment.yaml --force
+    deployment.apps "webapp" deleted
+    deployment.apps/webapp replaced
+
+    controlplane ~ ➜  k get deploy -n production 
+    NAME     READY   UP-TO-DATE   AVAILABLE   AGE
+    webapp   0/1     1            0           2s
+
+
+
+    Once again, you’re in a production environment investigating an issue with the api pod. What seems to be the problem this time?
+    Pods can be in any of the namespaces
+
+    option1: Image Repository does not exist
+    option2: Pod cannot reach container registry
+
+    controlplane ~ ➜  k get pod -n production 
+    ...
+    Events:
+    Type     Reason     Age                From               Message
+    ----     ------     ----               ----               -------
+    Normal   Scheduled  35s                default-scheduler  Successfully assigned production/api to node01
+    Normal   Pulling    16s (x2 over 30s)  kubelet            Pulling image "gitlab.kodekloud.com:5050/root/webapp:v4"
+    Warning  Failed     16s (x2 over 30s)  kubelet            Failed to pull image "gitlab.kodekloud.com:5050/root/webapp:v4": **failed to pull and unpack image** "gitlab.kodekloud.com:5050/root/webapp:v4": failed to resolve reference "gitlab.kodekloud.com:5050/root/webapp:v4": **failed to do request**: Head "https://gitlab.kodekloud.com:5050/v2/root/webapp/manifests/v4": dial tcp: lookup gitlab.kodekloud.com on 172.25.0.1:53: **no such host**
+    Warning  Failed     16s (x2 over 30s)  kubelet            Error: ErrImagePull
+    Normal   BackOff    2s (x2 over 29s)   kubelet            Back-off pulling image "gitlab.kodekloud.com:5050/root/webapp:v4"
+    Warning  Failed     2s (x2 over 29s)   kubelet            Error: ImagePullBackOff
+
+    Answer: option2
+
+
+    failed to resolve reference：無法解析 Image Repository 位址。
+    failed to do request: Head：嘗試從 gitlab.kodekloud.com:5050 下載 image，但發生錯誤。
+    dial tcp: lookup gitlab.kodekloud.com on 172.25.0.1:53: no such host：
+    **這代表 Kubernetes 嘗試解析 gitlab.kodekloud.com 這個網域時，DNS 無法找到這個位址**。
+    
+    這通常意味著網路問題，例如：
+    Pod 無法連線到外部的 container registry (gitlab.kodekloud.com:5050)。
+    DNS 伺服器無法解析該網址。
+    
+    為何不是 option1 (Image Repository does not exist)?
+    如果 image repository 不存在，通常會出現錯誤類似：
+
+    "manifest unknown" 或 "repository not found"
+    404 Not Found
+    failed to pull and unpack image ... manifest unknown
+    這些錯誤表明 該 repository 沒有該 image，但 DNS 解析應該仍然成功，不會出現 "lookup ... no such host" 這類錯誤。
+
+    但在這次的錯誤訊息中，關鍵問題是 **Pod 無法解析 Container Registry 的 DNS 位址**，這更符合 option2 (Pod cannot reach container registry)。
+
+
+2. Crashing Pods (**重要!!! 常考!!**) (與Container內部配置如:Probe, Volumes, env varaibles 有關)
+
+    導致CrashLoopBackOff 的幾種情況:
+    i. **查找不到env variables，將使pod崩潰並不斷嘗試重啟**
+    ![Crash](images/debug/crash.png "Crash")
+
+    ii. pod無法exec進入容器，導致pod崩潰
+    如: unable to start container process : exec: "/script.sh" : permission denied: unknown
+    ![Crash 2](images/debug/crash02.png "Crash 02")
+
+    使用docker images檢查該鏡像，docker run -it --image=<鏡像> sh，手動建立一個具有該鏡像的pod並進入到容器內，檢查文件
+    ![Crash 3](images/debug/crash03.png "Crash 03")
+
+    發現該script.sh文件不具有執行的權限，chmod修改
+    ![Crash 4](images/debug/crash04.png "Crash 04")
+
+    修改並重啟pod之後，便可看到狀態為running
+
+    iii. no such file or directory
+    ![Crash 5](images/debug/crash05.png "Crash 05")
+
+    檢查deployment 是否有定義configmap，發現沒有，發現container內沒有定義volumeMount
+    ![Crash 6](images/debug/crash06.png "Crash 06")
+
+    k edit deployment後，檢查pod已重啟成功並running
+
+    iv. **OOMKilled: Pod 的Memory使用量超過了 limit**，導致容器被系統強制終止 (Killed by the Out-Of-Memory Killer)
+    ![Crash 7](images/debug/crash07.png "Crash 07")
+
+    將pod limit設置高於request後重啟pod,便可重啟成功
+
+    v. Probe 有問題
+    ![Crash 8](images/debug/crash08.png "Crash 08")
+    ![Crash 9](images/debug/crash09.png "Crash 09")
+
+    vi. connection refused: 表示應用程序還沒reday， 有可能是 **LivenessProbe探測時間太短**! 
+    connection refused 表示 應用程式還沒準備好，但 livenessProbe 已經開始探測。
+    這通常發生在：
+    應用程式啟動時間較長（如需載入大量資料、連接資料庫等）。
+    探測時間設定過短，導致應用程式還沒準備好就被誤殺。
+    
+    Pod 的 Liveness Probe 在應用程式還沒完全啟動時就開始檢查，導致應用程式不斷被 Kubernetes 殺死並重新啟動 (Back-off restarting failed container)
+    ![Crash 10](images/debug/crash10.png "Crash 10")
+    
+    initialDelaySeconds: 1
+    Pod 啟動 1秒後 就開始進行健康檢查 (livenessProbe)。
+    但大部分應用程式需要 較長時間來啟動 (特別是 Spring Boot、Node.js、Python Flask 等後端應用)。
+    如果應用程式尚未準備好，Kubernetes 會錯誤地認為它當機，進而 殺掉並重啟容器。
+    (修改為20秒)
+
+    periodSeconds: 1
+    每 1 秒 進行一次健康檢查，這對於許多應用程式來說過於頻繁，容易導致不必要的重啟。
+    (修改為10秒)
+    ![Crash 11](images/debug/crash11.png "Crash 11")
+
+    也可以多設置: **failureThreshold**: 3
+    若探測失敗 3 次 才判定 Pod 當機，而不是立刻重啟，避免誤殺。
+
+
+    What does exit code 1 indicate?
+    Exit code 1 generally indicates that the application inside the container has encountered an error.
+
+    option1: Abnormal Termination (SIGABRT)
+    option2: Application Error
+    option3: Purposely Stopped
+
+    Answer：option3
+
+    
+    Which exit code indicates the application tried to access a non-existent file?
+
+    livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - |
+              pg_isready -d mydatabase -h localhost -U myuser -t 1
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: postgres
+        ports:
+        - containerPort: 5432
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - |
+              pg_isready -d mydatabase -h localhostt -U myuser -t 1 |# 有錯字
+          failureThreshold: 3
+          initialDelaySeconds: 20
+          periodSeconds: 10
+
+
+    Answer: readinessProbe is falling
+
+    Fix the previous issue with the cart-api deployment.
+
+    controlplane ~ ➜  k edit deploy cart-api 
+    deployment.apps/cart-api edited
+
+    controlplane ~ ➜  k get deploy
+    NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+    cart-api         1/1     1            1           9m30s
+    data-processor   0/1     1            0           10m
+
+
+    You are a seasoned Kubernetes application developer overseeing a critical production environment. You observe a web-server pod encountering a serious issue after a junior developer deployed a quick fix. What seems to be the problem?
+
+    controlplane ~ ➜  k get pod
+    NAME                              READY   STATUS             RESTARTS        AGE
+    cart-api-6df899869b-zcb2w         1/1     Running            0               2m14s
+    data-processor-55d57797b8-fxxds   0/1     CrashLoopBackOff   7 (3m51s ago)   11m
+    web-server                        1/1     Running            2 (38s ago)     45s
+
+    controlplane ~ ➜  k logs web-server 
+    /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+    /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+    /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+    10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+    10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+    /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+    /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+    /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+    /docker-entrypoint.sh: Configuration complete; ready for start up
+    2025/03/09 01:47:46 [emerg] 1#1: open() "/etc/nginx/nginx.conf" failed (2: No such file or directory)
+    nginx: [emerg] open() "/etc/nginx/nginx.conf" failed (2: No such file or directory)
+
+    spec:
+        containers:
+        - image: rakshithraka/custom-nginx:latest
+            imagePullPolicy: Always
+            name: nginx
+            ports:
+            - containerPort: 80
+            name: http-server
+            protocol: TCP
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            volumeMounts:
+              - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              name: kube-api-access-vgz6x
+              readOnly: true
+
+    Answer: Volume needed by app not mounted
+
+
+    Your company sales are booming and the developers are rolling out new releases every day to production. One day, you notice a problem with api-alpha deployments. What seems to be the problem here?
+
+    controlplane ~ ➜  k get pod
+    NAME                              READY   STATUS             RESTARTS        AGE
+    cart-api-6df899869b-zcb2w         1/1     Running            0               16m
+    data-processor-55d57797b8-fxxds   0/1     CrashLoopBackOff   12 (11s ago)    26m
+
+    controlplane ~ ➜  k describe pod api-alpha-cf697c9fc-74j68 
+    ...
+    Containers:
+    memory-demo-2-ctr:
+        Container ID:  containerd://23128db7bfad7ac5e153e43162e6463ade5a72ea901068ad797845eb303fc1e4
+        Image:         polinux/stress
+        Image ID:      docker.io/polinux/stress@sha256:b6144f84f9c15dac80deb48d3a646b55c7043ab1d83ea0a697c09097aaad21aa
+        Port:          <none>
+        Host Port:     <none>
+        Command:
+        stress
+        Args:
+        --vm
+        1
+        --vm-bytes
+        250M
+        --vm-hang
+        1
+        State:          Waiting
+        Reason:       CrashLoopBackOff
+        Last State:     Terminated
+        Reason:       **OOMKilled**
+        Exit Code:    1
+        Started:      Sun, 09 Mar 2025 01:57:21 +0000
+        Finished:     Sun, 09 Mar 2025 01:57:21 +0000
+        Ready:          False
+        Restart Count:  6
+        Limits:
+        memory:  100Mi
+        Requests:
+        memory:     50Mi
+        Environment:  <none>
+        Mounts:
+        /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-k2lfb (ro)
+    Conditions:
+    Type                        Status
+    PodReadyToStartContainers   True 
+    Initialized                 True 
+    Ready                       False 
+    ContainersReady             False 
+    PodScheduled                True 
+    Volumes:
+    kube-api-access-k2lfb:
+        Type:                    Projected (a volume that contains injected data from multiple sources)
+        TokenExpirationSeconds:  3607
+        ConfigMapName:           kube-root-ca.crt
+        ConfigMapOptional:       <nil>
+        DownwardAPI:             true
+    QoS Class:                   Burstable
+    Node-Selectors:              <none>
+    Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                                node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+    Events:
+    Type     Reason     Age                  From               Message
+    ----     ------     ----                 ----               -------
+    Normal   Scheduled  10m                  default-scheduler  Successfully assigned default/api-alpha-cf697c9fc-74j68 to node01
+    Normal   Pulled     10m                  kubelet            Successfully pulled image "polinux/stress" in 677ms (677ms including waiting). Image size: 4041495 bytes.
+    Normal   Pulled     10m                  kubelet            Successfully pulled image "polinux/stress" in 158ms (158ms including waiting). Image size: 4041495 bytes.
+    Normal   Pulled     10m                  kubelet            Successfully pulled image "polinux/stress" in 159ms (159ms including waiting). Image size: 4041495 bytes.
+    Normal   Pulled     9m32s                kubelet            Successfully pulled image "polinux/stress" in 150ms (150ms including waiting). Image size: 4041495 bytes.
+    Normal   Pulled     8m51s                kubelet            Successfully pulled image "polinux/stress" in 161ms (161ms including waiting). Image size: 4041495 bytes.
+    Normal   Created    7m22s (x6 over 10m)  kubelet            Created container: memory-demo-2-ctr
+    Normal   Pulled     7m22s                kubelet            Successfully pulled image "polinux/stress" in 138ms (138ms including waiting). Image size: 4041495 bytes.
+    Normal   Started    7m21s (x6 over 10m)  kubelet            Started container memory-demo-2-ctr
+    Normal   Pulling    4m37s (x7 over 10m)  kubelet            Pulling image "polinux/stress"
+    Normal   Pulled     4m37s                kubelet            Successfully pulled image "polinux/stress" in 200ms (200ms including waiting). Image size: 4041495 bytes.
+    Warning  BackOff    13s (x48 over 10m)   kubelet            Back-off restarting failed container memory-demo-2-ctr in pod api-alpha-cf697c9fc-74j68_default(d07632b6-7b2c-49ce-8e1a-7acff00947c1)
+
+    **雖然yaml file設置request 是50Mi 小於 limits是100Mi，但是注意command設置了**:
+    --vm 1：啟動 1 個記憶體分配實例（thread）。
+    --vm-bytes 250M：每個執行緒會分配 250MiB 記憶體。
+    🚨 問題：容器的 limits.memory 設定為 100Mi，但應用程式嘗試分配 250Mi，這大幅超過限制，因此被 OOMKilled！
+
+    所以
+    Answer: The new version takes more moemory than the previous version and gets OOM killed
+
+
+    Identify and fix the problem with the data-processordeployment
+    controlplane ~ ➜  k get pod
+    NAME                              READY   STATUS             RESTARTS       AGE
+    api-alpha-cf697c9fc-74j68         0/1     CrashLoopBackOff   8 (14s ago)    16m
+    cart-api-6df899869b-zcb2w         1/1     Running            0              22m
+    data-processor-55d57797b8-fxxds   0/1     CrashLoopBackOff   14 (15s ago)   32m
+    web-server                        0/1     CrashLoopBackOff   6 (14s ago)    6m34s
+
+    controlplane ~ ➜  k logs data-processor-55d57797b8-fxxds 
+
+    controlplane ~ ➜  k describe pod data-processor-55d57797b8-fxxds 
+    ...
+    Events:
+    Type     Reason     Age                    From               Message
+    ----     ------     ----                   ----               -------
+    Normal   Scheduled  32m                    default-scheduler  Successfully assigned default/data-processor-55d57797b8-fxxds to node01
+    Normal   Pulled     32m                    kubelet            Successfully pulled image "registry.k8s.io/busybox" in 398ms (398ms including waiting). Image size: 1144547 bytes.
+    Normal   Pulled     32m                    kubelet            Successfully pulled image "registry.k8s.io/busybox" in 153ms (153ms including waiting). Image size: 1144547 bytes.
+    Normal   Pulled     31m (x2 over 31m)      kubelet            Successfully pulled image "registry.k8s.io/busybox" in 158ms (158ms including waiting). Image size: 1144547 bytes.
+    Normal   Created    30m (x5 over 32m)      kubelet            Created container: liveness
+    Normal   Started    30m (x5 over 32m)      kubelet            Started container liveness
+    Normal   Pulled     30m                    kubelet            Successfully pulled image "registry.k8s.io/busybox" in 143ms (143ms including waiting). Image size: 1144547 bytes.
+    Normal   Killing    7m45s (x12 over 32m)   kubelet            Container liveness failed liveness probe, will be restarted
+    Warning  Unhealthy  7m13s (x13 over 32m)   kubelet            **Liveness probe failed: cat: can't open '/tmp/healthy': No such file or directory**
+    Warning  BackOff    2m33s (x108 over 30m)  kubelet            **Back-off restarting failed container liveness in pod** data-processor-55d57797b8-fxxds_default(53ca4e0c-5fb6-4517-ab83-5a8a757664b0)
+    Normal   Pulling    100s (x15 over 32m)    kubelet            Pulling image "registry.k8s.io/busybox"
+    
+
+    controlplane ~ ➜  k edit deploy data-processor 
+    ...
+    spec:
+    containers:
+    - args:
+        - /bin/sh
+        - -c    
+        - **sleep 30**; touch /tmp/healthy; sleep 3600
+        image: registry.k8s.io/busybox
+        imagePullPolicy: Always
+        livenessProbe:
+        exec:
+            command:
+            - cat
+            - /tmp/healthy
+        **failureThreshold: 3 #1  # 多嘗試2次!**
+        **initialDelaySeconds: ~~10~~ #2  # Container 預設先sleep 30秒之後才運行，所以建議initialDelaySeconds要設置大於等於30秒!**
+        **periodSeconds: 10 #1**
+        successThreshold: 1
+        timeoutSeconds: 1
+        name: liveness
+        resources: {}
+
+    deployment.apps/data-processor edited
+
+    controlplane ~ ➜  k get pod
+    NAME                              READY   STATUS             RESTARTS        AGE
+    cart-api-6df899869b-zcb2w         1/1     Running            0               25m
+    data-processor-55d57797b8-4cg78   1/1     Running            0               18s
+    
+
+3. Pending Pods (跟Pod調度有關)
+    i. 當cluster 上已經沒有充足的資源可以分配給pod時，將會使pod狀態為pending
+    ![Pending](images/debug/pending03.png "Pending")
+    ![Pending](images/debug/pending.png "Pending")
+    查看當前nodes資源:
+    ![Pending 2](images/debug/pending02.png "Pending 02")
+
+    從圖片中我們可以看到 Kubernetes 叢集中兩個 Node (`controlplane` 和 `node01`) 的 **CPU 使用狀況**，進而計算可供新 Pod 調度的 CPU 資源。
+
+    /### **🔍 1️⃣ 解析 `CPU` 資訊**
+    | Node         | 總 CPU | 已使用 CPU | %CPU | 剩餘可用 CPU |
+    |-------------|--------|-----------|------|------------|
+    | controlplane | **8**  | **5%** (0.05 * 8 = 0.4) | 5% | **7.6** |
+    | node01      | **3**  | **1%** (0.01 * 3 = 0.03) | 1% | **2.97** |
+
+    /### **🔢 2️⃣ 計算可用 CPU**
+    可用 CPU = `總 CPU - 已使用 CPU`
+    - **`controlplane`**: `8 - 0.4 = 7.6`
+    - **`node01`**: `3 - 0.03 = 2.97`
+
+
+    /### **✅ 3️⃣ 結論**
+    - `controlplane` **還有** **7.6 CPU** 可供新 Pod 使用。
+    - `node01` **還有** **2.97 CPU** 可供新 Pod 調度。
+
+    這意味著：
+    - `controlplane` **能調度更多需要高 CPU 資源的 Pod**。
+    - `node01` 由於 CPU 只有 **3 顆**，但當前使用率很低，**仍然可以調度一些小型 Pod**。
+
+    如果要確保新 Pod 能順利被調度到適合的 Node，可以使用：
+    ```sh
+    kubectl describe node controlplane
+    kubectl describe node node01
+    ```
+    來查看更詳細的 `Allocatable CPU` 和 `Requests`。
+
+    node01的剩餘可用CPU數量為2.97，倘若要將data-processor podpending被調度到node01上，
+    **在有限的node01資源上想調度pod, 只能降低pod的request cpu量!!**
+
+    檢查deployment配置:
+    ![Pending 05](images/debug/pending05.png "Pending 05")
+    
+    變更後檢查pod已經被調度
+    ![Pending 06](images/debug/pending06.png "Pending 06")
+
+
+    ii. 1 node didtn't match Pod's node affinity or selecctor (pod跟node上的labels不一致)
+    pod上的labels沒有在node上的labels中
+    ![Pending 07](images/debug/pending07.png "Pending 07")
+
+    檢查node01 的labels: 發現沒有設置type=gpu
+    ![Pending 08](images/debug/pending08.png "Pending 08")
+
+    由於pod 設置了node上沒有的labels, 為了能使mlapi pod被調度到node01上，則應在node01上添加type=gpu labels!
+
+    ![Pending 09](images/debug/pending09.png "Pending 09")
+
+    iii. 1 node has untolerated taint (pod沒有設置toleration)
+    ![Pending 04](images/debug/pending04.png "Pending 04")
+
+    檢查node01上的taints:
+    ![Pending 10](images/debug/pending10.png "Pending 10")
+
+    在deployment設置pod toleration:
+    ![Pending 11](images/debug/pending11.png "Pending 11")
+
+    設置後便可看到pod被成功調度
+
+
+
+
+4. Missing Pods (**CKAD1.32新觀念!! 會考!!**) (跟ResourceQuota, serviceaccount有關)
+    i. MinimumReplicasUnavailable:  node上可能定義了resource quota導致pod無法全部配置在node上
+    deployment定義replicas應為5個pod,最終卻只生成2個pod
+    ![Missing 01](images/debug/missing01.png "Missing 01")
+
+    透過k describe deploy 指令查看events並無異樣:
+    ![Missing 02](images/debug/missing02.png "Missing 02")
+
+    改使用: k get events -n staging 查看所有歷史events
+    ![Missing 03](images/debug/missing03.png "Missing 03")
+
+    查看node01: 發現設置了Used跟Hard Pod數量
+    Used = 5：目前 staging Namespace 中已經有 5 個 Pod。
+    Hard = 5：staging 最多允許 5 個 Pod，這表示 新的 Pod 不能被調度。
+    此時，如果再創建新的 Pod，Kubernetes 會返回：
+    Error from server (Forbidden): exceeded quota: pod-quota, requested: pods=1, used: 5, limited: 5
+    這是因為 Hard 限制為 5，Kubernetes 無法再調度新的 Pod。
+    ![Missing 04](images/debug/missing04.png "Missing 04")
+
+    修改resource quota的hard值 (k edit resourcequota) 並且重啟deployment (k rollout restart deploy -n staging api):
+    staging Namespace 現在允許的 最大 Pod 數量從 5 增加到 10。
+    這一步完成後，新的 Pod 就可以被調度，但 Kubernetes 需要一個觸發機制來實際執行 Pod 擴展
+    ![Missing 05](images/debug/missing05.png "Missing 05")
+
+    修改後k get pod --watch 發現pod數量追加至滿5個:
+    kubectl rollout restart deployment -n staging api
+    這個指令的作用：
+    強制 Deployment 滾動更新 (rollout restart)，讓所有 Pod 重新創建。
+    因為 ResourceQuota 現在允許最多 10 個 Pod，新的 Pod 可以成功啟動。
+    Kubernetes 會根據 replicas 設定來啟動新 Pod。
+    ![Missing 06](images/debug/missing06.png "Missing 06")
+
+    
+    ❓ 為何 Pod 數量變為 5 而不是 10？
+    **修改 ResourceQuota 只決定 Namespace 允許的最大 Pod 數量，但實際運行多少 Pod 取決於 Deployment 的 replicas 設定**。
+
+    你可以檢查 Deployment：
+    kubectl get deployment -n staging api -o yaml
+    **如果 replicas: 5，即使 ResourceQuota 允許 10 個 Pod，也只會啟動 5 個 Pod。**
+
+
+    ii. 沒有設置service account:
+    ![Missing 08](images/debug/missing08.png "Missing 08")
+
+    k describe pod 下的events並無任何提示，則使用k get events -n staging 指令來查看:
+
+    ![Missing 09](images/debug/missing09.png "Missing 09")
+
+    創建serviceaccount之後，k rollout restart deploy api便可看到pod成功創建:
+    ![Missing 10](images/debug/missing10.png "Missing 10")    
+
+        
+
+
+5. Schrödinger's Deployment 薛丁格部署: 無法確定一個應用程式是否真正成功部署並運行，除非你親自檢查。 (善用k get endpoints指令)
+    情境如: 你執行了部署，但不確定它是否成功, 部署過程沒有報錯，但應用程式可能無法正常運行, 在測試環境中一切正常，但部署到正式環境後可能壞掉,沒有適當的日誌記錄、監控或警報系統，讓團隊無法確定部署的狀態...etc
+    
+    **查看 endpoint 可以用來排查 Schrödinger's Deployment**
+    在 Kubernetes 內，Service 透過 selector 找到相應的 Pod，並生成 endpoints。如果 Service 的 selector 錯誤或不匹配，可能會導致流量沒有導向正確的 Pod，造成應用部署後無法使用的情況（即 Schrödinger's Deployment，既可能運行，也可能不運行）。
+
+        a. 檢查 Service 是否將流量導向正確的 Pod
+        kubectl get endpoints 可以顯示 Service 綁定的 Pod IP。
+        若 endpoints 列表為空，表示 Service 沒有匹配到任何 Pod，這可能是因為 label selector 錯誤。
+        
+        b. 排查 Service selector 問題
+        kubectl describe svc <service-name> 可檢查 selector 設定。
+        kubectl get pods --show-labels 檢查 Pod 的 labels，確保與 Service 的 selector 相匹配。
+        
+        c. 確保應用程序的 Pod 正在運行
+    
+    kubectl get pods 確保 Pod 狀態為 Running，且 Ready=1/1。
+    透過 kubectl get endpoints，你可以快速檢查：
+    Service 是否有綁定 Pod？
+    Pod 是否有被錯誤的 Service 代理？
+    是否有 label 配置錯誤導致的 Service 路由錯誤？
+
+    
+    blue-service 最初的 selector 過於寬鬆(只有 {version: v1})，包含了 green 的 Pod，導致 服務流量錯誤導向。
+    修正 blue-service 的 selector 後(變更為: {version: v1, app: blue} )，green-service 的 endpoints 也隨之正確更新，解決了流量錯誤分發的問題。
+    
+    這是一個經典的 Kubernetes Service selector 配置錯誤導致 流量混亂 的案例，經過 kubectl get endpoints 排查，成功解決了 Schrödinger's Deployment 問題！ 
 
 
 6. Create Container Errors
+
+    ![Container Error Types](images/debug/container-error.png "Container Error Types")    
+
+    ii. Generate Container Configuration - CreateContainerConfigError:
+
+    iii. Create Container - CreateContainerError:
+    ![Container Error Types](images/debug/container-error02.png "Container Error Types")  
+
+    ![Container Error Types](images/debug/container-error03.png "Container Error Types") 
+
+    iv. Create Container - RunContainerError:
+    ![Container Error Types](images/debug/container-error04.png "Container Error Types")  
+
+    ![Container Error Types](images/debug/container-error05.png "Container Error Types")  
+
+    /### **總結**
+    | Kubernetes 步驟 | 錯誤類型 | 可能的錯誤原因 | 排查方式 |
+    |----------------|------------------------|-----------------|---------------------|
+    | **Generate Container Configuration** | `CreateContainerConfigError` | - PodSpec 配置錯誤<br>- ConfigMap / Secret 不存在<br>- Volume 配置錯誤 | `kubectl describe pod`<br>`kubectl get configmap` |
+    | **Create Container** | `CreateContainerError` | - 資源不足<br>- 權限問題<br>- Storage 掛載失敗<br>- Image 不存在 | `kubectl describe pod`<br>`kubectl get pvc` |
+    | **Start Container** | `RunContainerError` | - 程式崩潰 (Exit Code ≠ 0)<br>- 啟動命令錯誤<br>- Liveness / Readiness 探針失敗<br>- 無法存取外部資源 | `kubectl logs`<br>`kubectl describe pod` |
+
+    透過這些方法，你可以有效排查 Kubernetes 的容器啟動問題，確保應用部署順利！ 🚀
 
 
 7. Config Out of Date
