@@ -1828,8 +1828,299 @@
 
 12. RBAC Troubleshooting
 
+    查看intern的Role跟RoleBinding設置:
+    ![intern role](../images/debug/role.png "intern role")
+    ![intern role](../images/debug/role02.png "intern role")
+
+    驗證其中一個intern是否可以get,list,watch資源:
+    ![intern role](../images/debug/role03.png "intern role")
+    ![intern role](../images/debug/role04.png "intern role")
+
+    檢查developers-rolebinding設置: 發現設置了兩個group: developer跟intern
+    ![intern role](../images/debug/role05.png "intern role")
+    以及developer-role設置:
+    ![intern role](../images/debug/role06.png "intern role")
+    發現developer-role具有對所有resource操作的權限!
+
+    改將developers-rolebinding取消intern group,避免實習生對所有資源操作:
+    ![intern role](../images/debug/role07.png "intern role")
+    驗證:
+    ![intern role](../images/debug/role08.png "intern role")
+
+
+    Which RBAC resource is used to grant permissions to multiple users or service accounts **across namespaces** at once?
+    Answer: ClusterRoleBinding
+
+
+    An application deployed in the dev namespace is unable to create ConfigMaps. After examining the RBAC configuration, you notice that the Role allows the necessary permissions. What additional steps might be needed to troubleshoot this issue?
+    Answer: Ensure the ServiceAccount associated with the application has been roperly bound to the Role
+
+
+    You have a service account sa-thor created in namespace asgard. Is it possible to allow sa-thor access to resources in namespace midgard?
+    Answer: ~~No, sa-thor can only access resources within asgard.~~
+    Yes, sa-thor can access resources in misgard 
+
+    That is correct, using a RoleBinding, we can bind a service account from one namespace to a role in another namespace.
+
+
+    A service account named monitoring needs permission to list pods in all namespaces for monitoring purposes. The ClusterRole and ClusterRoleBinding have been created, but the monitoring application still cannot list pods. Review the ClusterRole and ClusterRoleBinding pod-reader and pod-reader-binding on the cluster and spot the problem.
+
+    controlplane ~ ➜  k get clusterrole pod-reader 
+    NAME         CREATED AT
+    pod-reader   2025-03-09T20:59:44Z
+
+    controlplane ~ ➜  k describe clusterrole pod-reader 
+    Name:         pod-reader
+    Labels:       <none>
+    Annotations:  <none>
+    PolicyRule:
+    Resources  Non-Resource URLs  Resource Names  Verbs
+    ---------  -----------------  --------------  -----
+    pods       []                 []              [get watch list]
+
+    controlplane ~ ➜  k get clusterrolebinding pod-reader-binding 
+    NAME                 ROLE                     AGE
+    pod-reader-binding   ClusterRole/pod-reader   5m30s
+
+    controlplane ~ ➜  k describe clusterrolebinding pod-reader-binding 
+    Name:         pod-reader-binding
+    Labels:       <none>
+    Annotations:  <none>
+    Role:
+    Kind:  ClusterRole
+    Name:  pod-reader
+    Subjects:
+    Kind            Name                  Namespace
+    ----            ----                  ---------
+    ServiceAccount  commvault-admin       monitoring
+    ServiceAccount  api-service-account   monitoring
+    ServiceAccount  build-robot           monitoring
+    ServiceAccount  nginx-serviceaccount  monitoring
+
+    controlplane ~ ➜  k get sa
+    NAME      SECRETS   AGE
+    default   0         31m
+
+    controlplane ~ ✖ k get all -A|grep monitoring (找不到service account)
+
+    Answer: ~~ClusterRole not inclue the necessary permissions~~ -> 有設置get,watch,list
+    ClusterRoleBinding is missing the "monitoring" service account
+
+    (補充，如果要使驗證通過，則需要建立monitoring sa然後在clusterRoleBinding裡面添加該sa)
+
+    controlplane ~ ➜  k create sa monitoring 
+    serviceaccount/monitoring created
+
+    controlplane ~ ➜  k edit clusterrolebinding pod-reader-binding 
+    ...
+    roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: pod-reader
+    subjects:
+    - kind: ServiceAccount
+    name: commvault-admin
+    namespace: monitoring
+    - kind: ServiceAccount
+    name: api-service-account
+    namespace: monitoring
+    - kind: ServiceAccount
+    name: build-robot
+    namespace: monitoring
+    - kind: ServiceAccount
+    name: nginx-serviceaccount
+    namespace: monitoring
+    - **kind: ServiceAccount** # 添加此筆
+    name: monitoring
+    namespace: default
+
+
+    clusterrolebinding.rbac.authorization.k8s.io/pod-reader-binding edited                   
+
+    原本未添加該sa時，顯示如下:
+    controlplane ~ ➜  k auth can-i list pods --as=system:serviceaccount:default:monitoring
+    no
+
+    controlplane ~ ✖ k auth can-i list pods --as=system:serviceaccount:default:monitoring --all-namespaces 
+    no
+
+    添加monitorint sa後，驗證可以list,watch,get pods
+    controlplane ~ ✖ k auth can-i list pods --as=system:serviceaccount:default:monitoring --all-namespaces 
+    yes
+
+    controlplane ~ ➜  k auth can-i list pods --as=system:serviceaccount:default:monitoring --all-namespaces 
+    yes
+
+    controlplane ~ ➜  k auth can-i get pods --as=system:serviceaccount:default:monitoring --all-namespaces 
+    yes
+
+    controlplane ~ ➜  k auth can-i delete pods --as=system:serviceaccount:default:monitoring --all-namespaces 
+    no
+
+
+    Use the appropriate command to tell if the service account app has access to list pods in the production namespace
+
+    controlplane ~ ✖ k get sa -n production 
+    NAME      SECRETS   AGE
+    app       0         25m
+    default   0         25m
+
+    controlplane ~ ➜  k auth can-i list pods --as=system:serviceaccount:production:app
+    no
+
+    controlplane ~ ✖ k auth can-i list pods --as=system:serviceaccount:production:app **-n production** 別忘了添加namespace
+    yes
+
+    Answer: Yes, can list pods
+
+
+    Test your knowledge with this trick question. Which of the following statements are correct?
+    A. ClusterRoleBindings cannot reference Roles.
+    B. Creating the RoleBinding in a namespace other than the subjects’ allows the subject to have roles in other namespaces. # RoleBinding 是命名空間級別的，不能跨命名空間授權
+    C. Adding the namespace under the roleRef in a RoleBinding allows binding subjects to roles in other namespaces. # roleRef 不支援跨命名空間引用，只能引用當前 namespace 的 Role 或 ClusterRole
+    D. RoleBinding and ServiceAccounts must exist in the same namespace.
+    E. RoleBindings connect ClusterRoles, but they only give access to the namespace defined in the binding.
+
+    Answer: A,B,D
+
+
+    You’re trying to tighten security in your cluster by applying more strict RBACs. You notice that service account ci-sa has unrestricted access to all resources across all namespaces, as opposed to just list, get, and watch pods, as well as get logs in the ci namespace. Pinpoint and remove the ClusterRoleBinding or RoleBinding that grants excessive permissions.
+
+    controlplane ~ ➜  k get sa -A| grep ci-sa
+    ci                ci-sa                                         0         33m
+
+    controlplane ~ ➜  k get rolebindings -n ci
+    NAME                     ROLE                   AGE
+    pod-create-rolebinding   Role/pod-create-role   33m
+    pod-get-rolebinding      Role/pod-get-role      33m
+    pod-list-rolebinding     Role/pod-list-role     33m
+    pod-watch-rolebinding    Role/pod-watch-role    33m
+
+    controlplane ~ ➜  k describe rolebinding -n ci pod-create-rolebinding 
+    Name:         pod-create-rolebinding
+    Labels:       <none>
+    Annotations:  <none>
+    Role:
+    Kind:  Role
+    Name:  pod-create-role
+    Subjects:
+    Kind            Name   Namespace
+    ----            ----   ---------
+    ServiceAccount  ci-sa  ci
+
+    controlplane ~ ➜  k delete rolebinding -n ci pod-create-rolebinding 
+    rolebinding.rbac.authorization.k8s.io "pod-create-rolebinding" deleted
+
+    controlplane ~ ➜  k delete role -n ci pod-create-role 
+    role.rbac.authorization.k8s.io "pod-create-role" deleted
+
+    controlplane ~ ➜  k auth can-i create pods --as=system:serviceaccount:ci:ci-sa -n ci
+    yes
+
+    (刪除了pod-create-role 跟pod-create-rolebinding, ci-sa仍可以create pods，如下)
+    controlplane ~ ✖ k auth can-i list pods --as=system:serviceaccount:ci:ci-sa -n ci  
+  
+    yes
+
+    controlplane ~ ➜  k auth can-i create pods --as=system:serviceaccount:ci:ci-sa -n ci
+    yes
+
+    controlplane ~ ➜  k auth can-i get logs --as=system:serviceaccount:ci:ci-sa -n ci
+    Warning: the server doesn't have a resource type 'logs'
+
+    yes
+
+
+    Solution:
+
+    Run the command below to identify the ClusterRoleBinding or RoleBinding that grants excessive permissions:
+    controlplane ~ ➜   **kubectl auth can-i --as=system:serviceaccount:ci:ci-sa --namespace=production '*' '*' --v=10**
+    I0826 07:51:02.939521   10654 loader.go:395] Config loaded from file:  /root/.kube/config
+    I0826 07:51:02.940907   10654 request.go:1212] Request Body: {"kind":"SelfSubjectAccessReview","apiVersion":"authorization.k8s.io/v1","metadata":{"creationTimestamp":null},"spec":{"resourceAttributes":{"namespace":"production","verb":"*","resource":"*"}},"status":{"allowed":false}}
+    I0826 07:51:02.941024   10654 round_trippers.go:466] curl -v -XPOST  -H "User-Agent: kubectl/v1.28.0 (linux/amd64) kubernetes/855e7c4" -H "Accept: application/json, */*" -H "Content-Type: application/json" -H "Impersonate-User: system:serviceaccount:ci:ci-sa" 'https://controlplane:6443/apis/authorization.k8s.io/v1/selfsubjectaccessreviews'
+    I0826 07:51:02.941483   10654 round_trippers.go:495] HTTP Trace: DNS Lookup for controlplane resolved to [{192.176.54.10 }]
+    I0826 07:51:02.941872   10654 round_trippers.go:510] HTTP Trace: Dial to tcp:192.176.54.10:6443 succeed
+    I0826 07:51:02.951069   10654 round_trippers.go:553] POST https://controlplane:6443/apis/authorization.k8s.io/v1/selfsubjectaccessreviews 201 Created in 9 milliseconds
+    I0826 07:51:02.951111   10654 round_trippers.go:570] HTTP Statistics: DNSLookup 0 ms Dial 0 ms TLSHandshake 6 ms ServerProcessing 2 ms Duration 9 ms
+    I0826 07:51:02.951123   10654 round_trippers.go:577] Response Headers:
+    I0826 07:51:02.951137   10654 round_trippers.go:580]     Audit-Id: 71b886c4-1557-475e-b93b-a5f216cdfb94
+    I0826 07:51:02.951146   10654 round_trippers.go:580]     Cache-Control: no-cache, private
+    I0826 07:51:02.951155   10654 round_trippers.go:580]     Content-Type: application/json
+    I0826 07:51:02.951164   10654 round_trippers.go:580]     X-Kubernetes-Pf-Flowschema-Uid: 000b906d-9b03-4cbb-a164-1792775e1af2
+    I0826 07:51:02.951173   10654 round_trippers.go:580]     X-Kubernetes-Pf-Prioritylevel-Uid: 99328455-8d33-49df-92c6-5d7c16ff9d57
+    I0826 07:51:02.951182   10654 round_trippers.go:580]     Content-Length: 601
+    I0826 07:51:02.951191   10654 round_trippers.go:580]     Date: Mon, 26 Aug 2024 11:51:02 GMT
+    I0826 07:51:02.951222   10654 request.go:1212] Response Body: {"kind":"SelfSubjectAccessReview","apiVersion":"authorization.k8s.io/v1","metadata":{"creationTimestamp":null,"managedFields":[{"manager":"kubectl","operation":"Update","apiVersion":"authorization.k8s.io/v1","time":"2024-08-26T11:51:02Z","fieldsType":"FieldsV1","fieldsV1":{"f:spec":{"f:resourceAttributes":{".":{},"f:namespace":{},"f:resource":{},"f:verb":{}}}}}]},"spec":{"resourceAttributes":{"namespace":"production","verb":"*","resource":"*"}},"status":{"allowed":true,"reason":"RBAC: allowed by ClusterRoleBinding \"all-star\" of ClusterRole \"all-the-things\" to ServiceAccount \"ci-sa/ci\""}}
+    yes
+
+    Based on the output, the all-star ClusterRoleBinding is responsible for unrestricted access to all resources across all namespaces. To revoke these permissions, delete the ClusterRoleBinding using the following command:
+
+    kubectl delete clusterrolebinding all-star
+
+    1️⃣ --as=system:serviceaccount:ci:ci-sa
+
+    指定我們要模擬 ci-sa ServiceAccount 來測試權限。
+    
+    2️⃣ --namespace=production
+    檢查 ci-sa 是否擁有 production namespace 內的權限。
+    如果 ci-sa 只有 ci namespace 的權限，那這裡應該回傳 no。
+    但如果 ci-sa 擁有 ClusterRoleBinding，那麼它在 production 內也可能擁有權限。
+    
+    3️⃣ '*' '*'
+    '*' (第一個) 代表 檢查所有 **verbs**（e.g., get, list, create, delete）。
+    '*' (第二個) 代表 檢查所有 **resources**（e.g., pods, deployments, nodes）。
+    這樣我們就能檢查 ci-sa 是否能對 production namespace 的所有資源執行所有動作。
+    
+    4️⃣ **--v=10**
+
+    這是 kubectl 的 Debug 模式，會輸出更詳細的請求與回應。
+    這有助於找出 是哪個 RBAC (ClusterRole 或 Role) 授權 ci-sa 訪問權限。
+    在這次的測試中，--v=10 顯示：
+    "status":{"allowed":true,"reason":"RBAC: allowed by ClusterRoleBinding \"all-star\" of ClusterRole \"all-the-things\" to ServiceAccount \"ci-sa/ci\""}
+    這表示 ci-sa 透過 ClusterRoleBinding all-star 獲得 ClusterRole all-the-things，而 all-the-things 給了它對所有資源 (*) 的所有權限 (*)。
+    
+
 
 13. Netowrk Troubleshooting
+
+    1) Port: 
+
+    使用port-forward指令排查service跟deployment之間網路是否連通，以及curl localhost:<target-port>測試連接:
+    ![Port](../images/debug/port.png "Port")
+    k port-forward svc/nyancat-service 3000:80
+    可以看出你想要將本機的 3000 端口映射到 nyancat-service 的 80 端口。
+    但錯誤訊息顯示: 某個地方的 port-forwarding 設定有誤，導致它試圖從 3000 轉發到 8000
+
+    ![Port](../images/debug/port02.png "Port")
+    curl localhost:3000
+    顯示Empty reply from server
+
+    分別顯查service跟deployment的配置，發現svc的targetPort跟deploy的containerPort不一致
+    ![Port](../images/debug/port03.png "Port")
+    targetPort 必須對應到 Pod 內部某個 containerPort，這樣流量才能正確導向到應用程式
+
+    將svc的targetPort設置為80，重新使用port-forward指令跟curl驗證連通成功:
+    ![Port](../images/debug/port04.png "Port")
+
+    2) Unreachable Pod + Leaky Network Policies:
+    ![Port](../images/debug/port05.png "Port")
+
+    檢查當前所有資源:
+    ![Port](../images/debug/port06.png "Port")
+
+    k exec進入pod內嘗試curl -I api service發現連線為通:
+    ![Port](../images/debug/port07.png "Port")
+
+    改檢查labels跟networkpolicy:
+    ![Port](../images/debug/port08.png "Port")
+    
+    labels無誤，改檢查networkpolicy:
+    ![Port](../images/debug/port08.png "Port")
+
+    發現podSelector縮排有誤:
+    ![Port](../images/debug/port09.png "Port")
+
+    ![Port](../images/debug/port10.png "Port")
 
 
 14. Ingress Troubleshooting
