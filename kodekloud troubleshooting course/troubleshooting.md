@@ -1,6 +1,6 @@
 ### Prerequisites
 1. k get events
-    ![get events](images/debug/get-events.png "get events")
+    ![get events](../images/debug/get-events.png "get events")
     借由k get events指令檢查是否有Warning的events, 並且查看warning reason
 
     Q: You received reports of recent issues in the cluster. Investigate by using the appropriate command to view the events happening in the cluster. What is the most recent event?
@@ -37,20 +37,20 @@
 
 
 3. k auth can-i
-    ![auth whoami](images/debug/auth-whoami.png "auth whoami")
+    ![auth whoami](../images/debug/auth-whoami.png "auth whoami")
 
     由於未指定當前的user為何，使用auth can-i 卻顯示yes, 則透過k auth whoami指令查看當下測試的user
 
-    ![auth sa](images/debug/auth-serviceaccount.png "auth sa")
+    ![auth sa](../images/debug/auth-serviceaccount.png "auth sa")
     --as 指定serviceaccount
     k auth can-i get pods **--as=system:serviceaccount:default:default**
 
 
 4. k top: (僅限於用在pods跟nodes)
-   ![k top](images/debug/top.png "k top")
+   ![k top](../images/debug/top.png "k top")
 
 5. k expain --recursive: 加上recursive參數，直接展開所有字段(這就不用k explain一路查找至最底層字段)
-    ![k explain with recursive](images/debug/explain.png "k explain with recursive")
+    ![k explain with recursive](../images/debug/explain.png "k explain with recursive")
 
     You just learned there’s a lifecycle spec defined in one of the pod manifests. Use the right command to learn more about that lifecycle spec. Write the output out to a file lifecycle.txt
     
@@ -72,7 +72,7 @@
 
 6. k diff: 檢查本地現有的yaml配置文件與已建立的Resource之間的差異
     此命令會比較 my-deployment.yaml 文件中的資源和集群中的現有資源，並輸出差異
-    ![k diff](images/debug/diff.png "k diff")
+    ![k diff](../images/debug/diff.png "k diff")
 
     You've made changes to the deployment configuration in the nginx-deployment.yml file, but you want to review the differences before applying them. Use the command to show the difference between local and cluster configurations. What has changed?
 
@@ -207,8 +207,8 @@
     當 Pod 使用 Distroless 或極簡化映像時，kubectl exec 可能無法執行，但 kubectl debug 可幫助你添加一個完整的調試環境。
 
 
-    ![k debug](images/debug/debug.png "k debug")
-    ![k debug](images/debug/debug02.png "k debug")
+    ![k debug](../images/debug/debug.png "k debug")
+    ![k debug](../images/debug/debug02.png "k debug")
 
 
     1️⃣ kubectl exec 適用於已運行的 Pod
@@ -618,10 +618,10 @@
 11. k9s CLI 
     
     command line 輸入: k9s進入k9s介面
-    ![k9S CLI](images/debug/k9s.png "k9S CLI")
+    ![k9S CLI](../images/debug/k9s.png "k9S CLI")
 
     k9s visulization:
-    ![k9S visualization](images/debug/k9s-pulse "k9S Visualization")
+    ![k9S visualization](../images/debug/k9s-pulse "k9S Visualization")
 
 ### Troubleshooting Scenario
 !! 倘若k describe deploy/pods 下的events 沒有輸出任何有用提示，則善用k get events指令 來獲取相關的events!!
@@ -632,15 +632,15 @@
     i. image name typo
     ii. Pod Events 內顯示: 401 Unauthorized， 可能有secrets 但是pod沒有定義imagePullSecret參數
 
-    ![ImagePullError: 401](images/debug/imagePull.png "ImagePullError: 401")
+    ![ImagePullError: 401](../images/debug/imagePull.png "ImagePullError: 401")
 
-    ![ImagePullError: 401](images/debug/imagePull02.png "ImagePullError: 401")
+    ![ImagePullError: 401](../images/debug/imagePull02.png "ImagePullError: 401")
 
     iii. Pod Events 內顯示: no such host，則使用nslookup 指令檢查host是否存在(此題CKAD應不會考)
 
-    ![ImagePullError: 401](images/debug/imagePull03.png "ImagePullError: 401")
+    ![ImagePullError: 401](../images/debug/imagePull03.png "ImagePullError: 401")
 
-    ![ImagePullError: 401](images/debug/imagePull04.png "ImagePullError: 401")
+    ![ImagePullError: 401](../images/debug/imagePull04.png "ImagePullError: 401")
 
 
     What does the ErrImagePull error indicate in a Kubernetes environment?
@@ -792,36 +792,36 @@
 
     導致CrashLoopBackOff 的幾種情況:
     i. **查找不到env variables，將使pod崩潰並不斷嘗試重啟**
-    ![Crash](images/debug/crash.png "Crash")
+    ![Crash](../images/debug/crash.png "Crash")
 
     ii. pod無法exec進入容器，導致pod崩潰
     如: unable to start container process : exec: "/script.sh" : permission denied: unknown
-    ![Crash 2](images/debug/crash02.png "Crash 02")
+    ![Crash 2](../images/debug/crash02.png "Crash 02")
 
     使用docker images檢查該鏡像，docker run -it --image=<鏡像> sh，手動建立一個具有該鏡像的pod並進入到容器內，檢查文件
-    ![Crash 3](images/debug/crash03.png "Crash 03")
+    ![Crash 3](../images/debug/crash03.png "Crash 03")
 
     發現該script.sh文件不具有執行的權限，chmod修改
-    ![Crash 4](images/debug/crash04.png "Crash 04")
+    ![Crash 4](../images/debug/crash04.png "Crash 04")
 
     修改並重啟pod之後，便可看到狀態為running
 
     iii. no such file or directory
-    ![Crash 5](images/debug/crash05.png "Crash 05")
+    ![Crash 5](../images/debug/crash05.png "Crash 05")
 
     檢查deployment 是否有定義configmap，發現沒有，發現container內沒有定義volumeMount
-    ![Crash 6](images/debug/crash06.png "Crash 06")
+    ![Crash 6](../images/debug/crash06.png "Crash 06")
 
     k edit deployment後，檢查pod已重啟成功並running
 
     iv. **OOMKilled: Pod 的Memory使用量超過了 limit**，導致容器被系統強制終止 (Killed by the Out-Of-Memory Killer)
-    ![Crash 7](images/debug/crash07.png "Crash 07")
+    ![Crash 7](../images/debug/crash07.png "Crash 07")
 
     將pod limit設置高於request後重啟pod,便可重啟成功
 
     v. Probe 有問題
-    ![Crash 8](images/debug/crash08.png "Crash 08")
-    ![Crash 9](images/debug/crash09.png "Crash 09")
+    ![Crash 8](../images/debug/crash08.png "Crash 08")
+    ![Crash 9](../images/debug/crash09.png "Crash 09")
 
     vi. connection refused: 表示應用程序還沒reday， 有可能是 **LivenessProbe探測時間太短**! 
     connection refused 表示 應用程式還沒準備好，但 livenessProbe 已經開始探測。
@@ -830,7 +830,7 @@
     探測時間設定過短，導致應用程式還沒準備好就被誤殺。
     
     Pod 的 Liveness Probe 在應用程式還沒完全啟動時就開始檢查，導致應用程式不斷被 Kubernetes 殺死並重新啟動 (Back-off restarting failed container)
-    ![Crash 10](images/debug/crash10.png "Crash 10")
+    ![Crash 10](../images/debug/crash10.png "Crash 10")
     
     initialDelaySeconds: 1
     Pod 啟動 1秒後 就開始進行健康檢查 (livenessProbe)。
@@ -841,7 +841,7 @@
     periodSeconds: 1
     每 1 秒 進行一次健康檢查，這對於許多應用程式來說過於頻繁，容易導致不必要的重啟。
     (修改為10秒)
-    ![Crash 11](images/debug/crash11.png "Crash 11")
+    ![Crash 11](../images/debug/crash11.png "Crash 11")
 
     也可以多設置: **failureThreshold**: 3
     若探測失敗 3 次 才判定 Pod 當機，而不是立刻重啟，避免誤殺。
@@ -1086,10 +1086,10 @@
 
 3. Pending Pods (跟Pod調度有關)
     i. 當cluster 上已經沒有充足的資源可以分配給pod時，將會使pod狀態為pending
-    ![Pending](images/debug/pending03.png "Pending")
-    ![Pending](images/debug/pending.png "Pending")
+    ![Pending](../images/debug/pending03.png "Pending")
+    ![Pending](../images/debug/pending.png "Pending")
     查看當前nodes資源:
-    ![Pending 2](images/debug/pending02.png "Pending 02")
+    ![Pending 2](../images/debug/pending02.png "Pending 02")
 
     從圖片中我們可以看到 Kubernetes 叢集中兩個 Node (`controlplane` 和 `node01`) 的 **CPU 使用狀況**，進而計算可供新 Pod 調度的 CPU 資源。
 
@@ -1124,31 +1124,31 @@
     **在有限的node01資源上想調度pod, 只能降低pod的request cpu量!!**
 
     檢查deployment配置:
-    ![Pending 05](images/debug/pending05.png "Pending 05")
+    ![Pending 05](../images/debug/pending05.png "Pending 05")
     
     變更後檢查pod已經被調度
-    ![Pending 06](images/debug/pending06.png "Pending 06")
+    ![Pending 06](../images/debug/pending06.png "Pending 06")
 
 
     ii. 1 node didtn't match Pod's node affinity or selecctor (pod跟node上的labels不一致)
     pod上的labels沒有在node上的labels中
-    ![Pending 07](images/debug/pending07.png "Pending 07")
+    ![Pending 07](../images/debug/pending07.png "Pending 07")
 
     檢查node01 的labels: 發現沒有設置type=gpu
-    ![Pending 08](images/debug/pending08.png "Pending 08")
+    ![Pending 08](../images/debug/pending08.png "Pending 08")
 
     由於pod 設置了node上沒有的labels, 為了能使mlapi pod被調度到node01上，則應在node01上添加type=gpu labels!
 
-    ![Pending 09](images/debug/pending09.png "Pending 09")
+    ![Pending 09](../images/debug/pending09.png "Pending 09")
 
     iii. 1 node has untolerated taint (pod沒有設置toleration)
-    ![Pending 04](images/debug/pending04.png "Pending 04")
+    ![Pending 04](../images/debug/pending04.png "Pending 04")
 
     檢查node01上的taints:
-    ![Pending 10](images/debug/pending10.png "Pending 10")
+    ![Pending 10](../images/debug/pending10.png "Pending 10")
 
     在deployment設置pod toleration:
-    ![Pending 11](images/debug/pending11.png "Pending 11")
+    ![Pending 11](../images/debug/pending11.png "Pending 11")
 
     設置後便可看到pod被成功調度
 
@@ -1158,13 +1158,13 @@
 4. Missing Pods (**CKAD1.32新觀念!! 會考!!**) (跟ResourceQuota, serviceaccount有關)
     i. MinimumReplicasUnavailable:  node上可能定義了resource quota導致pod無法全部配置在node上
     deployment定義replicas應為5個pod,最終卻只生成2個pod
-    ![Missing 01](images/debug/missing01.png "Missing 01")
+    ![Missing 01](../images/debug/missing01.png "Missing 01")
 
     透過k describe deploy 指令查看events並無異樣:
-    ![Missing 02](images/debug/missing02.png "Missing 02")
+    ![Missing 02](../images/debug/missing02.png "Missing 02")
 
     改使用: k get events -n staging 查看所有歷史events
-    ![Missing 03](images/debug/missing03.png "Missing 03")
+    ![Missing 03](../images/debug/missing03.png "Missing 03")
 
     查看node01: 發現設置了Used跟Hard Pod數量
     Used = 5：目前 staging Namespace 中已經有 5 個 Pod。
@@ -1172,12 +1172,12 @@
     此時，如果再創建新的 Pod，Kubernetes 會返回：
     Error from server (Forbidden): exceeded quota: pod-quota, requested: pods=1, used: 5, limited: 5
     這是因為 Hard 限制為 5，Kubernetes 無法再調度新的 Pod。
-    ![Missing 04](images/debug/missing04.png "Missing 04")
+    ![Missing 04](../images/debug/missing04.png "Missing 04")
 
     修改resource quota的hard值 (k edit resourcequota) 並且重啟deployment (k rollout restart deploy -n staging api):
     staging Namespace 現在允許的 最大 Pod 數量從 5 增加到 10。
     這一步完成後，新的 Pod 就可以被調度，但 Kubernetes 需要一個觸發機制來實際執行 Pod 擴展
-    ![Missing 05](images/debug/missing05.png "Missing 05")
+    ![Missing 05](../images/debug/missing05.png "Missing 05")
 
     修改後k get pod --watch 發現pod數量追加至滿5個:
     kubectl rollout restart deployment -n staging api
@@ -1185,7 +1185,7 @@
     強制 Deployment 滾動更新 (rollout restart)，讓所有 Pod 重新創建。
     因為 ResourceQuota 現在允許最多 10 個 Pod，新的 Pod 可以成功啟動。
     Kubernetes 會根據 replicas 設定來啟動新 Pod。
-    ![Missing 06](images/debug/missing06.png "Missing 06")
+    ![Missing 06](../images/debug/missing06.png "Missing 06")
 
     
     ❓ 為何 Pod 數量變為 5 而不是 10？
@@ -1197,14 +1197,14 @@
 
 
     ii. 沒有設置service account:
-    ![Missing 08](images/debug/missing08.png "Missing 08")
+    ![Missing 08](../images/debug/missing08.png "Missing 08")
 
     k describe pod 下的events並無任何提示，則使用k get events -n staging 指令來查看:
 
-    ![Missing 09](images/debug/missing09.png "Missing 09")
+    ![Missing 09](../images/debug/missing09.png "Missing 09")
 
     創建serviceaccount之後，k rollout restart deploy api便可看到pod成功創建:
-    ![Missing 10](images/debug/missing10.png "Missing 10")    
+    ![Missing 10](../images/debug/missing10.png "Missing 10")    
 
         
 
@@ -1238,21 +1238,104 @@
     這是一個經典的 Kubernetes Service selector 配置錯誤導致 流量混亂 的案例，經過 kubectl get endpoints 排查，成功解決了 Schrödinger's Deployment 問題！ 
 
 
-6. Create Container Errors
+6. Create Container Errors (CreateContainerError & RunContaimerError -> sleep指令解決以延長pod壽命並且利於執行k exec進一步排查)
+    
+    ![Container Error Types](../images/debug/container-error.png "Container Error Types")    
 
-    ![Container Error Types](images/debug/container-error.png "Container Error Types")    
+    i. Pull Image (見上方1. Image Pull Errors)
 
-    ii. Generate Container Configuration - CreateContainerConfigError:
 
-    iii. Create Container - CreateContainerError:
-    ![Container Error Types](images/debug/container-error02.png "Container Error Types")  
+    ii. Generate Container Configuration - CreateContainerConfigError: **配置錯誤，導致容器無法生成**
+    (錯誤發生於 Pod.spec 底下配置錯誤如: Volume中ConfigMap / Secret 不存在, 或是找不到環境變數)
 
-    ![Container Error Types](images/debug/container-error03.png "Container Error Types") 
+    範例1: 見上方2.i範例
+    (錯誤發生於找不到環境變數)
+    | **錯誤編號** | **錯誤類型** | **原因分析** | **對應錯誤分類** |
+    |------------|------------|------------|----------------|
+    | **2-i. 查找不到環境變數 (`env variables` 不存在，導致 Pod 崩潰並重啟)** | **環境變數問題** | Pod 需要的環境變數（`env`）未設置，可能因為 `ConfigMap` 或 `Secret` 缺失，導致應用程式啟動失敗。 | **CreateContainerConfigError** |
 
-    iv. Create Container - RunContainerError:
-    ![Container Error Types](images/debug/container-error04.png "Container Error Types")  
+    範例2: 
+    (錯誤發生於找不到secrets)
+    k get events 顯示找不到secrets
+    ![Container Error Types](../images/debug/container-error06.png "Container Error Types")  
+    檢查pod文件，發現該secrets不存在，手動建立secrets:
+    ![Container Error Types](../images/debug/container-error07.png "Container Error Types")  
+    建立secrets後，重啟pod，使pod成功running:
+    ![Container Error Types](../images/debug/container-error08.png "Container Error Types")  
 
-    ![Container Error Types](images/debug/container-error05.png "Container Error Types")  
+
+
+    iii. Create Container - CreateContainerError: **容器已創建，但運行環境有問題**
+
+    範例1: 見上方2.iii範例
+    (錯誤發生於找不到volume掛載錯誤，像是找不到volumeMonut)
+    | **錯誤編號** | **錯誤類型** | **原因分析** | **對應錯誤分類** |
+    |------------|------------|------------|----------------|
+    | **2-iii. `no such file or directory`** | **ConfigMap / Volume 掛載錯誤** | `Deployment` 未掛載 `ConfigMap` 或 `VolumeMount`，導致應用程式找不到必要的文件 | **CreateContainerError** |
+
+    範例2: 添加sleep 3600來解決pod因為「沒有執行的指令」而立即退出，導致錯誤
+    (錯誤發生於 Kubelet 嘗試創建容器但發現沒有可執行的命令)
+    ![Container Error Types](../images/debug/container-error02.png "Container Error Types")  
+    添加指令後始pod具有一個有效的命令 (entry command)
+    ![Container Error Types](../images/debug/container-error03.png "Container Error Types") 
+    修改完deployment配置後便可看到pod狀態為running
+    ![Container Error Types](../images/debug/container-error09.png "Container Error Types") 
+
+    見下方[說明]。
+
+
+    iv. Start Container - RunContainerError: **容器成功創建，但運行時發生錯誤**
+
+    
+    範例1: 見上方2.ii範例
+    | **錯誤編號** | **錯誤類型** | **原因分析** | **對應錯誤分類** |
+    |------------|------------|------------|----------------|
+    | **2-ii. Pod 無法執行 `exec` 進入容器 (`permission denied`)** | **權限問題** | 容器內的 `script.sh` 沒有執行權限 (`chmod +x` 未設置)，導致無法啟動應用程式 | **RunContainerError** |
+
+    
+    範例2: 見上方2.iv範例
+    | **錯誤編號** | **錯誤類型** | **原因分析** | **對應錯誤分類** |
+    |------------|------------|------------|----------------|
+    | **2-iv. `OOMKilled`: 記憶體超限 (Out-Of-Memory, OOM Killer)** | **資源不足 (Memory 限制超出)** | 容器使用的 `Memory` 超過 `limit`，導致系統強制終止 | **RunContainerError** |
+    
+    範例3: 見上方2.v範例
+    | **錯誤編號** | **錯誤類型** | **原因分析** | **對應錯誤分類** |
+    | **2-v. `Probe` 探針錯誤，導致 Pod 反覆重啟** | **Liveness / Readiness 探測失敗** | `LivenessProbe` 或 `ReadinessProbe` 設置錯誤，導致容器啟動後立即被判斷為不健康並重新啟動 | **RunContainerError** |
+
+
+    範例4: 見上方2.vi範例
+    | **錯誤編號** | **錯誤類型** | **原因分析** | **對應錯誤分類** |
+    | **2-vi. `connection refused`: LivenessProbe 探測時間太短** | **應用啟動時間較長，探測時間過短** | `LivenessProbe` 探測間隔過短，應用還沒準備好 | **RunContainerError** |
+
+
+    範例5:
+    (錯誤發生於 容器成功創建但執行時找不到指定的命令)
+    ![Container Error Types](../images/debug/container-error04.png "Container Error Types")  
+
+    ![Container Error Types](../images/debug/container-error10.png "Container Error Types")
+
+    ![Container Error Types](../images/debug/container-error05.png "Container Error Types")  
+    修改完deployment配置後便可看到pod狀態為running    
+
+    見下方說明。
+
+    [說明]
+    為何 CreateContainerError（iii. 範例3）與 RunContainerError（iv. 範例5）的處理方法都是添加 command: ["sleep", "3600"]？
+    在 iii. CreateContainerError 和 iv. RunContainerError 的錯誤場景中，Pod 都無法順利啟動，而解決方案都是添加 command: ["sleep", "3600"]。這是因為：
+
+    根本問題：容器沒有預設的啟動指令
+
+    在 iii. CreateContainerError 中，錯誤發生於 Kubelet 嘗試創建容器但發現沒有可執行的命令。
+    在 iv. RunContainerError 中，錯誤發生於 容器成功創建但執行時找不到指定的命令。
+    **Kubernetes 需要有「可執行的命令」，否則容器會失敗**
+
+    如果**容器映像本身沒有 ENTRYPOINT 或 CMD，或者指定的 command 無法執行，則容器會因為「沒有執行的指令」而立即退出，導致錯誤**。
+    sleep 3600 是最簡單的佔位命令，能夠保持容器運行
+
+    sleep 3600 會讓容器執行 sleep 命令，使其保持運行 3600 秒（1 小時）。
+    這樣，Pod 會進入 Running 狀態，而不會 CrashLoopBackOff 或 Exit 1。
+    **這對於 測試、除錯（kubectl exec 進入容器）很有幫助**。
+
 
     /### **總結**
     | Kubernetes 步驟 | 錯誤類型 | 可能的錯誤原因 | 排查方式 |
@@ -1266,18 +1349,482 @@
 
 7. Config Out of Date
 
+    範例1: 變更ConfigMap 的data 但Pod沒有更新獲取新的env值值
+    在 Kubernetes 中，當你修改了 ConfigMap 裡的 data，但發現進入 pod 後環境變數 (env) 沒有變更，這是因為 ConfigMap 的變更不會自動更新已經運行中的 Pod。這與 ConfigMap 的掛載方式有關。
+    ![Config Out Of Date](../images/debug/config-outofdate.png "Config Out Of Date")
 
-8. Reloader
+    為什麼修改了 ConfigMap，Pod 裡的環境變數沒有變更？
+  
+    ConfigMap 可以被掛載到 Pod 中有兩種方式：
+    作為環境變數 (envFrom or env)
+    作為 Volume 掛載 (volumeMounts)
+
+    如果 ConfigMap 是通過環境變數傳遞 (env) 到 Pod 裡：
+    環境變數的值只會在 Pod 啟動時初始化，之後即使 ConfigMap 更新了，已運行的 Pod 內部環境變數不會變更。
+   
+    解決方式：必須重啟 Pod，讓新的 ConfigMap 值生效。
+    
+    如果 ConfigMap 是作為 Volume 掛載：
+    Kubernetes 會自動檢測 ConfigMap 變更，並更新 Volume 內容（通常會有幾秒鐘的延遲）。
+    但這只適用於文件類型的 ConfigMap 掛載，而非環境變數。
+
+    rollout restart deployment -n production web-app 會執行 Deployment 滾動重啟：
+    Kubernetes 會逐步終止舊的 Pod，並創建新的 Pod。
+    新的 Pod 會獲取更新後的 ConfigMap 值作為環境變數。
+
+    OR:
+    倘若使用k reload -f deployment.yaml:
+    **僅會替換 Deployment 物件，不會影響正在運行的 Pod，除非 .spec.template 有變更!!**。
+    Pod 內的環境變數不會被刷新，仍然是舊的 ConfigMap 值
+    除非先 手動刪除所有pod之後，再執行reload
+
+    結論
+    ConfigMap 變更後不會自動更新環境變數，因為環境變數是 Pod 啟動時設定的。
+
+    解決方式
+    推薦方法：kubectl rollout restart deployment -n production web-app
+    替代方法：手動刪除 Pod (kubectl delete pod ...)，讓 Deployment 自動創建新 Pod。
+    最佳實踐：使用 ConfigMap Volume 掛載，而非環境變數，讓變更自動生效（但前提是應用要能讀取文件變更）。
+    如果你的應用程式能夠監聽 ConfigMap 變更，可以用 Volume 掛載，避免每次改 ConfigMap 都要重啟 Pod！
 
 
-9. Endlessly Terminating Pods
+    範例2: Secrets值 decode後正確但pod獲取了錯誤的環境變數，則重啟該pod使pod讀取正確的secrets值
+
+    readinessProbe找不到主機名稱:
+    ![Config Out Of Date](../images/debug/config-outofdate02.png "Config Out Of Date")
+    檢查發現host配置於secrets，檢查secrets配置
+    ![Config Out Of Date](../images/debug/config-outofdate03.png "Config Out Of Date")
+    檢查secrets裡面的MYSQL_HOST，decode之後的值為mysql, 並無錯誤:
+    MYSQL_HOST: bXlzcWw= 
+    echo "bxLzcWw=" |base -d (-d: decode)
+    ![Config Out Of Date](../images/debug/config-outofdate04.png "Config Out Of Date")
+    執行rollout restart deploy之後，可看到POD狀態跟evnets均正常:
+    ![Config Out Of Date](../images/debug/config-outofdate05.png "Config Out Of Date")
+
+8. Endlessly Terminating Pods (搭配--force使用)
+    
+    如下，嘗試終止pod時卻無法完全刪除該pod
+    ![Endlessly Terminating](../images/debug/endless.png "Endlessly Terminating")
+    當執行 kubectl delete pod shipping-api-57cdd984bc-grq7g 時，Pod 進入 Terminating 狀態，但 持續停留在 Terminating，沒有真正刪除，這通常是 Pod 卡在終止狀態 (endlessly terminating)，可能有以下幾種原因：
+    應用沒有正確處理 SIGTERM，導致無法優雅關閉。
+    Pod 有 Finalizer，阻止刪除。
+    Pod 仍然持有 PVC，無法刪除。
+    網絡 (CNI) 問題導致 Pod 卡住
+
+    遇到以上問題時，使用: k delete pod <pod-name> --force 跳過正常優雅關閉流程，強制移除pod
+
+    以下展示較常見的"Finalizer"問題:
+    https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers/
+
+    檢查pod是否具有Finalizer:
+    ![Endlessly Terminating](../images/debug/endless02.png "Endlessly Terminating")
+    ![Endlessly Terminating](../images/debug/endless03.png "Endlessly Terminating")
+    移除Finalizer後，便可成功刪除該pod:
+    ![Endlessly Terminating](../images/debug/endless04.png "Endlessly Terminating")
+
+    檢查namespace是否具有Finalizer:
+    ![Endlessly Terminating](../images/debug/endless05.png "Endlessly Terminating")
+    同樣移除之後，可成功刪除該ns:
+    ![Endlessly Terminating](../images/debug/endless06.png "Endlessly Terminating")
 
 
-10. Field Immutability
 
 
-11. Enable Service Links
+9. Field Immutability
 
+    deployment的spec.labels在deployment建立之後便不可修改，若嘗試修改或新增該欄位將會出現如下提示:
+    ![Immutable Field](../images/debug/immutable.png "Immutable Field")
+    只能刪除該deployment重新建立:
+    ![Immutable Field](../images/debug/immutable02.png "Immutable Field")
+
+
+10. Enable Service Links (這CKAD不會考)
+
+    ![Enable Service Link](../images/debug/enableservicelink.png "Enable Service Link")
+    ![Enable Service Link](../images/debug/enableservicelink02.png "Enable Service Link")
+    
+    如圖，為什麼 app-frontend 變成 CrashLoopBackOff？
+    a. **環境變數過多導致 `Argument List Too Long`**
+       - **解法**：在 `Deployment` 設定 `enableServiceLinks: false`，避免 Kubernetes 自動加入 `ServiceLinks` 環境變數。
+
+    b. **ConfigMap 或 Secret 缺失**
+       - **解法**：確認它們是否存在於新 namespace，並手動複製。
+
+    c. **無法連接後端服務**
+       - **解法**：使用 `nslookup` 測試 DNS，確保正確連接 `backend`，並修改 `BACKEND_URL` 設定完整 FQDN。
+
+    解決完這些問題後，執行：
+    ```bash
+    kubectl delete pod app-frontend-5d55d67ccc-2dwdd -n <new-namespace>
+    ```
+    讓 Kubernetes 重新啟動 Pod，檢查是否恢復正常運行
+
+
+    以下展示a. 環境變數過多導致 Argument List Too Long:
+
+    | 方案 | 優點 | 缺點 |
+    ||||
+    | **Primary Approach - DNS Plugin** | 不會產生過多環境變數，適合大規模系統 | 需要應用程式支援 DNS 解析 |
+    | **Secondary Approach - Environment Variables** | 簡單易用 | Service 過多時，可能導致 `Argument List Too Long` 問題 |
+
+    解決方案：設置 `enableServiceLinks: false`
+    - 在 Deployment 中 **顯式關閉** `enableServiceLinks`，避免 Kubernetes 自動注入 Service 環境變數：
+      ```yaml
+      spec:
+        enableServiceLinks: false
+      ```
+    - 這樣 Kubernetes 就不會將 `SERVICE_<NAME>_HOST` 和 `SERVICE_<NAME>_PORT` 這些變數注入到 Pod，從而**減少環境變數數量，避免 `Argument List Too Long` 問題**。
+
+    預設為enable,除非**手動設置為false**: enableSerivceLink: false
+    ![Enable Service Link](../images/debug/enableservicelink03.png "Enable Service Link") 
+
+    ![Enable Service Link](../images/debug/enableservicelink04.png "Enable Service Link") 
+
+
+11. Troubleshooting  Combo Pratcice:
+    
+    A node no longer has capacity for a pod to be scheduled, what will be the state of the pod?
+    Answer: Pending
+
+    
+    In which of the following scenarios would you have to delete the object and apply it again for changes to take effect?
+    option1: Adding a new value in a configmap
+    option2: Decreasing container resource requests of deployment
+    option3: Modifying the value of an existing label selector
+    option4: Adding a new value in a secret
+
+    Answer: option3 (因為有些spec.properties是immutable)
+
+
+    Which of the following will cause a CreateContainerError?
+    option1: Incorrect start command -> RunContainerError
+    option2: Missing Configmap -> CreateContainerConfigError
+    option3: Insufficient resources -> 如果 Pod 請求的 CPU 或記憶體超過節點上可用的數量，則 Kubernetes 將無法建立容器。
+
+    Answer: option3
+
+
+    How does setting enableServiceLinks: false impact pod networking in Kubernetes?
+    Answer: It disables the automatic injection of environment variables related to services in the pod.
+
+
+    You’re trying to deploy a pod v2-release-testing in the devnamespace, but because the cluster admins know developers tend to abuse the development cluster, they created a resource quota restricting the number of pods on this namespace.
+    Without modifying the resource quota, deploy the pod alpha-release
+    Manifest file for v2-release-testing is present at /root/v2-release-testing.yml
+
+    Hint: You can delete pods of old release testing v1-release-testing
+    The pod may take a long time to terminate, use what you learned in the previous lessons to force delete the pod
+
+    controlplane ~ ➜  k get pod -n dev
+    NAME                 READY   STATUS    RESTARTS        AGE
+    analytics            1/1     Running   0               9m50s
+    api                  1/1     Running   0               9m51s
+    cart-api             1/1     Running   0               9m50s
+    data-processor       1/1     Running   0               9m51s
+    database-pod         1/1     Running   0               9m51s
+    feedback-api         1/1     Running   0               9m50s
+    ml-api               1/1     Running   1 (9m36s ago)   9m51s
+    search               1/1     Running   0               9m50s
+    user-api             1/1     Running   0               9m50s
+    v1-release-testing   1/1     Running   0               9m51s
+
+    controlplane ~ ➜  k get resourcequotas -n dev
+    NAME        AGE   REQUEST       LIMIT
+    pod-quota   10m   pods: 10/10   
+
+    controlplane ~ ➜  k describe resourcequotas -n dev pod-quota 
+    Name:       pod-quota
+    Namespace:  dev
+    Resource    Used  Hard
+    --------    ----  ----
+    pods        10    10
+
+    controlplane ~ ➜  cat v2-release-testing.yml 
+    apiVersion: v1
+    kind: Pod
+    metadata:
+        name: v2-release-testing
+        namespace: dev
+    spec:
+        containers:
+        - name: nginx-container
+            image: nginx:latest
+            ports:
+            - containerPort: 80
+
+    在 Kubernetes 叢集中，由於 namespace dev 設有 資源配額 (ResourceQuota)，限制該命名空間內最多只能有 10 個 pods。在這個情境下，當我們想要部署 v2-release-testing pod 時，發現 dev 命名空間已經達到 10/10 的 pod 限制，導致無法再新增新的 pod。
+
+    為何要刪除 v1-release-testing pod？
+    因為 資源配額已滿 (10/10)，所以若不刪除舊的 v1-release-testing pod，就無法再新增 v2-release-testing pod。這是一種 資源回收 的策略，在不變更資源配額的前提下，透過刪除舊的 pod，釋放出一個可用的 pod 配額。
+
+    controlplane ~ ➜  k delete pod -n dev v1-release-testing --force
+    Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+    pod "v1-release-testing" force deleted
+
+    controlplane ~ ➜  k get pod -n dev
+    NAME             READY   STATUS    RESTARTS      AGE
+    analytics        1/1     Running   0             15m
+    api              1/1     Running   0             15m
+    cart-api         1/1     Running   0             15m
+    data-processor   1/1     Running   0             15m
+    database-pod     1/1     Running   0             15m
+    feedback-api     1/1     Running   0             15m
+    ml-api           1/1     Running   1 (15m ago)   15m
+    search           1/1     Running   0             15m
+    user-api         1/1     Running   0             15m
+
+    controlplane ~ ➜  k apply -f v2-release-testing.yml 
+    pod/v2-release-testing created
+
+    controlplane ~ ➜  k get pod -n dev
+    NAME                 READY   STATUS    RESTARTS      AGE
+    analytics            1/1     Running   0             15m
+    api                  1/1     Running   0             15m
+    cart-api             1/1     Running   0             15m
+    data-processor       1/1     Running   0             15m
+    database-pod         1/1     Running   0             15m
+    feedback-api         1/1     Running   0             15m
+    ml-api               1/1     Running   1 (15m ago)   15m
+    search               1/1     Running   0             15m
+    user-api             1/1     Running   0             15m
+    v2-release-testing   1/1     Running   0             2s
+    
+    
+    Your team has to deploy web-a and web-b, which are 2 web services. You’re reviewing the manifests and notice that the apps contain the same label values and that label is used as a selector in the service. Why is this a problem?
+
+    option1: The shared label selectors will result in indiscriminate traffic routing, leading to potential misrouting of requests between the two services.
+    option2: This is not a problem at all, the apps will be deployed normally.
+
+    Answer: option1
+
+
+    You’ll find webapp-color-v1 and webapp-color-v2 deployed in the default namespace. Fix the issue mentioned in the previous task.
+    Adjust the label on webapp-color-v1 to be app: webapp-color-v1 and on webapp-color-v2 to be app: webapp-color-v2
+
+    controlplane ~ ➜  k get deploy
+    NAME              READY   UP-TO-DATE   AVAILABLE   AGE
+    feedback          0/1     1            0           20m
+    webapp            0/1     1            0           20m
+    webapp-color-v1   1/1     1            1           20m
+    webapp-color-v2   1/1     1            1           20m
+
+
+    controlplane ~ ➜  k get svc
+    NAME                      TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+    kubernetes                ClusterIP   10.96.0.1        <none>        443/TCP        71m
+    webapp-color-v1-service   NodePort    10.102.121.149   <none>        80:30080/TCP   24m
+    webapp-color-v2-service   NodePort    10.107.20.61     <none>        80:30081/TCP   24m
+
+    controlplane ~ ➜  k describe svc webapp-color-v1-service 
+    Name:                     webapp-color-v1-service
+    Namespace:                default
+    Labels:                   <none>
+    Annotations:              <none>
+    Selector:                 app=web
+    Type:                     NodePort
+    IP Family Policy:         SingleStack
+    IP Families:              IPv4
+    IP:                       10.102.121.149
+    IPs:                      10.102.121.149
+    Port:                     <unset>  80/TCP
+    TargetPort:               8080/TCP
+    NodePort:                 <unset>  30080/TCP
+    Endpoints:                10.244.192.10:8080,10.244.192.12:8080
+    Session Affinity:         None
+    External Traffic Policy:  Cluster
+    Internal Traffic Policy:  Cluster
+    Events:                   <none>
+
+    controlplane ~ ➜  k describe svc webapp-color-v2-service 
+    Name:                     webapp-color-v2-service
+    Namespace:                default
+    Labels:                   <none>
+    Annotations:              <none>
+    Selector:                 app=web
+    Type:                     NodePort
+    IP Family Policy:         SingleStack
+    IP Families:              IPv4
+    IP:                       10.107.20.61
+    IPs:                      10.107.20.61
+    Port:                     <unset>  80/TCP
+    TargetPort:               8080/TCP
+    NodePort:                 <unset>  30081/TCP
+    Endpoints:                10.244.192.10:8080,10.244.192.12:8080
+    Session Affinity:         None
+    External Traffic Policy:  Cluster
+    Internal Traffic Policy:  Cluster
+    Events:                   <none>
+
+    
+    controlplane ~ ➜  k get deploy webapp-color-v1 -o yaml > webapp-color-v1.yaml
+    controlplane ~ ➜  k get deploy webapp-color-v2 -o yaml > webapp-color-v2.yaml
+
+    controlplane ~ ➜  vim webapp-color-v1.yaml 
+    controlplane ~ ➜  vim webapp-color-v2.yaml 
+
+    controlplane ~ ➜  k replace -f webapp-color-v2.yaml --force
+    deployment.apps "webapp-color-v2" deleted
+    deployment.apps/webapp-color-v2 replaced
+
+    controlplane ~ ➜  k get deploy
+    NAME              READY   UP-TO-DATE   AVAILABLE   AGE
+    feedback          0/1     1            0           26m
+    webapp            0/1     1            0           26m
+    webapp-color-v1   1/1     1            1           13s
+    webapp-color-v2   1/1     1            1           6s
+
+
+    controlplane ~ ➜  k get  svc webapp-color-v1-service -o yaml > webapp-color-v1-service.yaml
+
+    controlplane ~ ➜  k get  svc webapp-color-v2-service -o yaml > webapp-color-v2-service.yaml
+
+    controlplane ~ ➜  vim webapp-color-v1-service.yaml 
+
+    controlplane ~ ➜  vim webapp-color-v2-service.yaml 
+
+    controlplane ~ ➜  k replace -f  webapp-color-v1-service.yaml --force
+    service "webapp-color-v1-service" deleted
+    service/webapp-color-v1-service replaced
+
+    controlplane ~ ➜  k replace -f  webapp-color-v2-service.yaml --force
+    service "webapp-color-v2-service" deleted
+    service/webapp-color-v2-service replaced
+
+    controlplane ~ ➜  k get svc
+    NAME                      TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+    kubernetes                ClusterIP   10.96.0.1        <none>        443/TCP        76m
+    webapp-color-v1-service   NodePort    10.102.121.149   <none>        80:30080/TCP   9s
+    webapp-color-v2-service   NodePort    10.107.20.61     <none>        80:30081/TCP   4s
+
+    controlplane ~ ➜  k describe svc webapp-color-v1-service 
+    Name:                     webapp-color-v1-service
+    Namespace:                default
+    Labels:                   <none>
+    Annotations:              <none>
+    Selector:                 app=webapp-color-v1
+    Type:                     NodePort
+    IP Family Policy:         SingleStack
+    IP Families:              IPv4
+    IP:                       10.102.121.149
+    IPs:                      10.102.121.149
+    Port:                     <unset>  80/TCP
+    TargetPort:               8080/TCP
+    NodePort:                 <unset>  30080/TCP
+    Endpoints:                10.244.192.20:8080
+    Session Affinity:         None
+    External Traffic Policy:  Cluster
+    Internal Traffic Policy:  Cluster
+    Events:                   <none>
+
+    controlplane ~ ➜  k describe svc webapp-color-v2-service 
+    Name:                     webapp-color-v2-service
+    Namespace:                default
+    Labels:                   <none>
+    Annotations:              <none>
+    Selector:                 app=webapp-color-v2
+    Type:                     NodePort
+    IP Family Policy:         SingleStack
+    IP Families:              IPv4
+    IP:                       10.107.20.61
+    IPs:                      10.107.20.61
+    Port:                     <unset>  80/TCP
+    TargetPort:               8080/TCP
+    NodePort:                 <unset>  30081/TCP
+    Endpoints:                10.244.192.21:8080
+    Session Affinity:         None
+    External Traffic Policy:  Cluster
+    Internal Traffic Policy:  Cluster
+    Events:                   <none>
+
+
+    What cause the webapp pod not running?
+
+    controlplane ~ ➜  k get events|grep webapp
+    31m         Normal    Scheduled           pod/webapp-76455b47bf-2x6gf             Successfully assigned default/webapp-76455b47bf-2x6gf to node01
+    100s        Normal    Pulling             pod/webapp-76455b47bf-2x6gf             Pulling image "redis"
+    31m         Normal    Pulled              pod/webapp-76455b47bf-2x6gf             Successfully pulled image "redis" in 171ms (32.922s including waiting). Image size: 45013665 bytes.
+    73s         Warning   Failed              pod/webapp-76455b47bf-2x6gf             Error: configmap "myconfigmap" not found
+    30m         Normal    Pulled              pod/webapp-76455b47bf-2x6gf             Successfully pulled image "redis" in 286ms (17.36s including waiting). Image size: 45013665 bytes.
+    30m         Normal    Pulled              pod/webapp-76455b47bf-2x6gf             Successfully pulled image "redis" in 165ms (165ms including waiting). Image size: 45013665 bytes.
+
+
+      template:
+        metadata:
+        creationTimestamp: null
+        labels:
+            app: webapp
+        spec:
+        containers:
+            #- envFrom:
+            #- configMapRef:
+            #    name: myconfigmap
+        - image: redis
+            imagePullPolicy: Always
+            name: webapp
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+
+    controlplane ~ ✖ vim webapp.yaml 
+
+    controlplane ~ ➜  k replace -f webapp.yaml --force 
+    deployment.apps/webapp replaced
+
+    controlplane ~ ➜  k get deploy
+    NAME              READY   UP-TO-DATE   AVAILABLE   AGE
+    feedback          0/1     1            0           40m
+    webapp            1/1     1            1           3s
+    webapp-color-v1   1/1     1            1           14m
+    webapp-color-v2   1/1     1            1           14m
+
+    controlplane ~ ➜  k get pod
+    NAME                               READY   STATUS                 RESTARTS   AGE
+    feedback-7b4c575c64-xtxgj          0/1     CreateContainerError   0          40m
+    webapp-667c99746b-gskmb            1/1     Running                0          6s
+    webapp-color-v1-667df85f7f-9j9f9   1/1     Running                0          14m
+    webapp-color-v2-6c7ddbd6b9-hsmfl   1/1     Running                0          14m
+
+    Answer: Missing ConfigMap
+
+
+    Deployment feedback is facing errors in creation. Investigate the cause. What seems to be the problem this time?
+
+    controlplane ~ ➜  k get pod
+    NAME                               READY   STATUS                 RESTARTS   AGE
+    feedback-7b4c575c64-xtxgj          0/1     CreateContainerError   0          40m
+    webapp-667c99746b-gskmb            1/1     Running                0          6s
+    webapp-color-v1-667df85f7f-9j9f9   1/1     Running                0          14m
+    webapp-color-v2-6c7ddbd6b9-hsmfl   1/1     Running                0          14m
+
+    controlplane ~ ➜  k get events |grep feedback
+    43m         Normal    Scheduled           pod/feedback-7b4c575c64-xtxgj           Successfully assigned default/feedback-7b4c575c64-xtxgj to node01
+    2m57s       Normal    Pulling             pod/feedback-7b4c575c64-xtxgj           Pulling image "rakshithraka/entrypoint:latest"
+    42m         Normal    Pulled              pod/feedback-7b4c575c64-xtxgj           Successfully pulled image "rakshithraka/entrypoint:latest" in 17.985s (32.845s including waiting). Image size: 349284039 bytes.
+    42m         Warning   Failed              pod/feedback-7b4c575c64-xtxgj           Error: failed to generate container "63d1dddf8813defeb26ea79e4458c5b42ab5e328fa2c6d182684b8de40b91c8f" spec: failed to generate spec: no command specified
+
+    Answer: Start command not specified
+
+
+    One of the application requirements is high availability, so you increase the number of replicas of the api deployment to 10. You first try this out on the testing namespace, but notice the number of replicas is not 10. Identify the cause.
+    optiob1: Insufficient resources
+    option2: Replicas exceed number of pods set for namespace
+
+    controlplane ~ ➜  k get deploy -n testing 
+    NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+    api    5/10    5            5           43m
+
+    controlplane ~ ➜  k get resourcequotas -n testing 
+    NAME        AGE   REQUEST     LIMIT
+    pod-quota   44m   pods: 5/5   
+
+    controlplane ~ ➜  k describe resourcequotas -n testing 
+    Name:       pod-quota
+    Namespace:  testing
+    Resource    Used  Hard
+    --------    ----  ----
+    pods        5     5
+
+    Answer: option2
 
 12. RBAC Troubleshooting
 
