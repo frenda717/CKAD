@@ -1,8 +1,8 @@
 First Attempt Score:  32%
 
-空題 (來不及寫): 12,14,17,19 
+空題 (來不及寫): 12,14,17,19,20 
 錯題: 1,2,5,7,8,11,13
-
+不熟的topic: storageClass 為maual (01), jq tool (07)
 
 
 ### SECTION: APPLICATION DESIGN AND BUILD
@@ -43,10 +43,6 @@ First Attempt Score:  32%
     data-pvc-ckad02-str   Pending                                      local-path     <unset>                 3s
 
 
-    student-node ~ ➜  k get pvc
-    NAME                  STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
-    data-pvc-ckad02-str   Pending                                      local-path     <unset>                 3s
-
     student-node ~ ➜  k delete pvc data-pvc-ckad02-str --force
     Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
     persistentvolumeclaim "data-pvc-ckad02-str" force deleted
@@ -71,28 +67,27 @@ First Attempt Score:  32%
     metadata:
     name: data-pv-ckad02-str
     spec:
-    capacity:
-        storage: 128Mi
-    accessModes:
-        - ReadWriteOnce
-    hostPath:
-        path: /opt/data-pv-ckad02-str
-    storageClassName: manual
+        capacity:
+            storage: 128Mi
+        accessModes:
+            - ReadWriteOnce
+        hostPath:
+            path: /opt/data-pv-ckad02-str
+        **storageClassName: manual**
 
-    ---
 
     apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
-    name: data-pvc-ckad02-str
+        name: data-pvc-ckad02-str
     spec:
-    storageClassName: manual
-    volumeName: data-pv-ckad02-str
-    accessModes:
-        - ReadWriteOnce
-    resources:
-        requests:
-        storage: 50Mi
+        **storageClassName: manual**
+        volumeName: data-pv-ckad02-str
+        accessModes:
+            - ReadWriteOnce
+        resources:
+            requests:
+            storage: 50Mi
 
 
 2. (CronoJob: command設成了arg!) In the ckad-job namespace, create a cron job called my-alarm that prints current datetime. It must be scheduled to run every Sunday at midnight.
@@ -169,18 +164,38 @@ First Attempt Score:  32%
             containers:
             - image: busybox:1.28
                 name: my-alarm
-                args: [/bin/sh, -c, echo $(date)]
+                ~~args: [/bin/sh, -c, echo $(date)]~~
                 resources: {}
             restartPolicy: OnFailure
     schedule: 0 0 * * sun
     status: {}
 
-    
+    args 解析時機
+    在原始的 YAML 配置中：
+    args: [/bin/sh, -c, echo $(date)]
+    這裡的 $(date) 會在 Kubernetes API Server 解析 YAML 的時候展開，而不是在 Pod 裡執行時才解析。因此，它會被替換成 當時 YAML 被解析時的日期，而不會在 CronJob 每次運行時動態獲取當下時間。
+
+    這就是為什麼 args 這樣寫的話，會導致 echo $(date) 在執行時無法正確顯示當前的日期，而可能是 YAML 配置時的時間。
+
+    command 和 args 的區別
+    command 會直接指定容器的入口點（entrypoint）。
+    args 則是傳遞給 command 指定的進程的參數。
+    例如：
+    containers:
+    - name: my-alarm
+        image: busybox:1.28
+        command: ["/bin/sh", "-c"]
+        args: ["echo $(date)"]
+    **這樣的寫法仍然會有 $(date) 提前解析的問題**。
+    使用 command：確保 date 命令在容器運行時動態獲取當前時間
+
+
     O Is cronjob my-alarm created?
     O Is the container image busybox:1.28?
     X Does cronjob run the date command?
     O Does cronjob runs every Sunday at midnight?
 
+    
     Solution: Use below YAML to create cronjob:
 
     apiVersion: batch/v1
@@ -192,22 +207,22 @@ First Attempt Score:  32%
     schedule: "0 0 * * 0"
     jobTemplate:
         spec:
-        template:
-            spec:
-            containers:
-            - name: hello
-                image: busybox:1.28
-                imagePullPolicy: IfNotPresent
-                command:
-                - /bin/sh
-                - -c
-                - date;
-            restartPolicy: OnFailure
+            template:
+                spec:
+                containers:
+                - name: hello
+                    image: busybox:1.28
+                    imagePullPolicy: IfNotPresent
+                    command:
+                    - /bin/sh
+                    - -c
+                    - date;
+                restartPolicy: OnFailure
 
     
 
 
-4. (正確) In the ckad-multi-containers namespace, create a pod named static-web-server, which consists of 2 containers. One main container and one init-container both are running alpine image.
+3. (正確) In the ckad-multi-containers namespace, create a pod named static-web-server, which consists of 2 containers. One main container and one init-container both are running alpine image.
 
     Init container should print this message Getting main application ready! and then sleep for 10 seconds.
     Main container should print this message Main application is running and then sleep for 3600 seconds.
@@ -333,7 +348,7 @@ First Attempt Score:  32%
     NAME                READY   STATUS      RESTARTS   AGE
     static-web-server   0/1     Completed   0          10s
 
-5. In the ckad-multi-containers namespace, create a pod named static-web-server, which consists of 2 containers. One main container and one init-container both are running alpine image.
+5. (command : /bin/sh 後面用&&連接多個指令)In the ckad-multi-containers namespace, create a pod named static-web-server, which consists of 2 containers. One main container and one init-container both are running alpine image.
 
     Init container should print this message Getting main application ready! and then sleep for 10 seconds.
     Main container should print this message Main application is running and then sleep for 3600 seconds.
@@ -370,6 +385,25 @@ First Attempt Score:  32%
     dnsPolicy: ClusterFirst
     restartPolicy: Never
     status: {}
+
+
+    command: ["/bin/sh","-c",echo "Getting main application ready!", "sleep 10"]
+    問題出在：
+    command 陣列中的 echo 和 sleep 沒有被 sh -c 正確解析
+
+    "echo 'Getting main application ready!'" 應該作為 sh -c 的一個完整的字串，但你把 echo 和 "Getting main application ready!" 拆開了，導致 sh -c 只執行 echo，然後 sleep 10 變成了一個獨立參數，這是無效的。
+
+    為什麼 && 這麼重要？
+    sh -c 只接受一個命令字串，如果你要執行多個命令，需要用 && 或 ; 連接起來。
+    && 確保 第一個命令執行成功後才執行第二個，這樣 echo 完成後才會 sleep
+
+    應寫為: 
+    command: ["sh", "-c", "echo 'message' **&&** sleep 10"]
+    
+    或是:
+      - sh
+      - -c
+      - echo Getting main application ready! && sleep 10    
 
 
 
@@ -415,12 +449,7 @@ First Attempt Score:  32%
     For this question, please set the context to cluster3 by running:
     kubectl config use-context cluster3
 
-    student-node ~ ➜  helm search repo polar|grep nginx
-    polar/nginx                                     19.0.1          1.27.4          NGINX Open Source is a web server that can be a...
-    polar/nginx-ingress-controller                  11.6.11         1.12.0          NGINX Ingress Controller is an Ingress controll...
-    polar/nginx-intel                               2.1.15          0.4.9           DEPRECATED NGINX Open Source for Intel is a lig...
-
-    student-node ~ ➜  helm search repo polar|grep nginx
+    student-node ~ ➜  **helm search repo polar|grep nginx**
     polar/nginx                                     19.0.1          1.27.4          NGINX Open Source is a web server that can be a...
     polar/nginx-ingress-controller                  11.6.11         1.12.0          NGINX Ingress Controller is an Ingress controll...
     polar/nginx-intel                               2.1.15          0.4.9           DEPRECATED NGINX Open Source for Intel is a lig...
@@ -449,12 +478,13 @@ First Attempt Score:  32%
     NAME            NAMESPACE       REVISION        UPDATED                                 STATUS          CHART              APP VERSION
     nginx-server    cd-tool-apd     1               2025-03-10 01:22:05.654528469 +0000 UTC deployed        nginx-19.0.1       1.27.4     
 
-7. One of the Kubernetes developers from the team has deployed a test application named test-v1-apd to implement the blue/green deployment methodology. 
+7. (replicas 數量錯誤 & deployment設置錯誤) One of the Kubernetes developers from the team has deployed a test application named test-v1-apd to implement the blue/green deployment methodology. 
 
-    Now, the team wants to send 50% of the traffic to the new test application, but since the main developer is away from the office, the team wants you to create a new deployment that can take the traffic from the pre-configured service. We have details of the application, which will help you create a new deployment: -
+    Now, the team wants to **send 50% of the traffic** to the new test application, but since the main developer is away from the office, the team wants you to create a new deployment that can take the traffic from the pre-configured service. We have details of the application, which will help you create a new deployment: -
 
     The new deployment name should be test-v2-apd.
-    Add label to a deployment stage = test02. 
+    **Add label to a deployment stage = test02**. - > 這裡要求deployment的lables應為:  stage = test02 而非deployment的selector!
+
     Use the image kodekloud/webapp-color:v2 and the container name test-v2.
     Scale a deployment in a way that the pre-configured service can send 50% of the traffic to this new deployment.
 
@@ -516,6 +546,25 @@ First Attempt Score:  32%
 
     student-node ~ ✖ kd create deploy test-v2-apd --image=kodekloud/webapp-color:v2 -o yaml > test-v2-apd.yaml
 
+    send 50% of the traffic to new deploy -> **那就是test-v1-apd跟test-v2-apd兩個deployment 的replicas數量要一樣!**
+    
+    <補充:>
+    
+    (假如今天是: 40% of the traffic to new deploy，test-v1-apd原本有5個replicas，那test-v2-apd就有: 3個)
+    **新的deployment replicas數量 / 總replicas數量 = 指定的流量百分比 / 100**
+    設新replicas 數量為X，則:
+    X/ (5 + X) = 0.4
+    0.6X = 2
+    X 為3.33
+
+    若X=3，則流量:
+    3 / (5+3) = 37.5%
+
+    若X=4，則流量:
+    4 / (5+4) = 44.4%...
+
+    當X=3時，較接近40%，故新replicas數應為3
+
     student-node ~ ➜  vim test-v2-apd.yaml 
     student-node ~ ➜  cat test-v2-apd.yaml 
     apiVersion: apps/v1
@@ -523,68 +572,26 @@ First Attempt Score:  32%
     metadata:
     creationTimestamp: null
     labels:
-        test-app: v2
-        app: test-v2-apd
+        ~~test-app: v2~~ # 題目要求labels應設置為 stage: test02! (不用跟test-v1-apd一樣!)
+        ~~app: test-v2-apd~~ 
     name: test-v2-apd
     spec:
-    replicas: 2
+    replicas: ~~2~~ # 應為3 
     selector:
         matchLabels:
-            test-app: v2
+            ~~test-app: v2~~ # **應為: test-app: v1** (labels為跟service-selector以及test-v1-apd的selector相同)
     strategy: {}
     template:
         metadata:
         creationTimestamp: null
         labels:
-            test-app: v2
+            ~~test-app: v2~~ # **應為: test-app: v1**
         spec:
         containers:
         - image: kodekloud/webapp-color:v2
-            name: webapp-color
+            name: ~~webapp-color~~  # 題目要求: container name **test-v2**
             resources: {}
     status: {}
-
-
-    student-node ~ ➜  k get deploy
-    NAME          READY   UP-TO-DATE   AVAILABLE   AGE
-    test-v1-apd   3/3     3            3           19m
-    test-v2-apd   2/2     2            2           6m17s
-
-    student-node ~ ➜  k describe deploy test-v2-apd 
-    Name:                   test-v2-apd
-    Namespace:              default
-    CreationTimestamp:      Mon, 10 Mar 2025 01:37:22 +0000
-    Labels:                 app=test-v2-apd
-                            test-app=v2
-    Annotations:            deployment.kubernetes.io/revision: 1
-    Selector:               test-app=v2
-    Replicas:               2 desired | 2 updated | 2 total | 2 available | 0 unavailable
-    StrategyType:           RollingUpdate
-    MinReadySeconds:        0
-    RollingUpdateStrategy:  25% max unavailable, 25% max surge
-    Pod Template:
-    Labels:  test-app=v2
-    Containers:
-    webapp-color:
-        Image:         kodekloud/webapp-color:v2
-        Port:          <none>
-        Host Port:     <none>
-        Environment:   <none>
-        Mounts:        <none>
-    Volumes:         <none>
-    Node-Selectors:  <none>
-    Tolerations:     <none>
-    Conditions:
-    Type           Status  Reason
-    ----           ------  ------
-    Available      True    MinimumReplicasAvailable
-    Progressing    True    NewReplicaSetAvailable
-    OldReplicaSets:  <none>
-    NewReplicaSet:   test-v2-apd-867c589fcf (2/2 replicas created)
-    Events:
-    Type    Reason             Age    From                   Message
-    ----    ------             ----   ----                   -------
-    Normal  ScalingReplicaSet  6m25s  deployment-controller  Scaled up replica set test-v2-apd-867c589fcf to 2
 
     student-node ~ ➜  k get svc
     NAME           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
@@ -596,7 +603,7 @@ First Attempt Score:  32%
     Namespace:                default
     Labels:                   tag=test-apd-svc
     Annotations:              <none>
-    Selector:                 test-app=v2
+    Selector:                 ~~test-app=v2~~ # **原本應為: test-app=v1** 
     Type:                     NodePort
     IP Family Policy:         SingleStack
     IP Families:              IPv4
@@ -612,37 +619,24 @@ First Attempt Score:  32%
 
 
     Solution
+
     Run the following command to change the context: -
-
-
     kubectl config use-context cluster3
-
-
 
     In this task, we will use the kubectl command. Here are the steps: -
 
-
-
     Use the kubectl get command to list all the given resources: -
-
     kubectl get deploy,svc -A
 
 
-
     Here -A option lists the resources of all the namespaces.
-
     Identify the deployment and service names.
 
     Now, use the kubectl create command to create a deployment manifest file as follows: -
-
-
     kubectl create deploy test-v2-apd --image=kodekloud/webapp-color:v2 --dry-run=client -oyaml > <FILE-NAME-1>.yaml
-
-
 
     Open the file with any text editor such as vi or nano and update it as per the specifications. Check the labels for the pod template from the service. It should look like this: -
 
-    ---
     apiVersion: apps/v1
     kind: Deployment
     metadata:
@@ -650,7 +644,7 @@ First Attempt Score:  32%
         stage: test02
     name: test-v2-apd
     spec:
-    replicas: 3
+    **replicas: 3**
     selector:
         matchLabels:
         test-app: v1
@@ -676,7 +670,9 @@ First Attempt Score:  32%
 
 
 
-8. On the cluster2, the team has installed multiple helm charts on a different namespace. By mistake, those deployed resources include one of the vulnerable images called kodekloud/webapp-color:v1. Find out the release name and uninstall it.
+8. (jq tool不熟) On the cluster2, the team has installed multiple helm charts on a different namespace. By mistake, those deployed resources include one of the vulnerable images called kodekloud/webapp-color:v1. Find out the release name and uninstall it.
+
+    **跟Udemy-Mock04相同!**
 
     For this question, please set the context to cluster2 by running:
     kubectl config use-context cluster2
@@ -701,38 +697,38 @@ First Attempt Score:  32%
 
     Solution
     Run the following command to change the context: -
-
     kubectl config use-context cluster2
 
-
-
-    In this task, we will use the helm commands and jq tool. Here are the steps: -
-
-
-
+    In this task, we will use the helm commands and **jq tool**. Here are the steps: -
     Run the helm ls command with -A option to list the releases deployed on all the namespaces using helm.
     helm ls -A
 
-
-
     We will use the jq tool to extract the image name from the deployments.
-    kubectl get deploy -n <NAMESPACE> <DEPLOYMENT-NAME> -o json | jq -r '.spec.template.spec.containers[].image'
-
-
+    kubectl get deploy -n <NAMESPACE> <DEPLOYMENT-NAME> -o json | **jq -r** **'.spec.template.spec.containers[].image'**
 
     Replace <NAMESPACE> with the namespace and <DEPLOYMENT-NAME> with the deployment name, which we get from the previous commands.
 
     After finding the kodekloud/webapp-color:v1 image, use the helm uninstall to remove the deployed chart that are using this vulnerable image.
 
-
     helm uninstall <RELEASE-NAME> -n <NAMESPACE> 
 
+    | 工具 | 語法 | 為何這樣用？ |
+    |------|------|-------------|
+    | **`kubectl jsonpath`** | `{}` | 需要 `{}` 來標記 JSON 路徑 |
+    | **`jq`** | `''` | 需要 `''` 來包住 JSON 查詢表達式 |
 
+    本題為: json結合jq語法:
+
+    如果你不想使用 jsonpath，也可以用 jq 來達成相同的效果：
+    kubectl get pods -o json | jq -r '.items[] | select(.metadata.name | test("test-")).metadata.name'
+    
+    這裡使用 jq 解析 JSON，並用 select(.metadata.name | test("test-")) 來篩選符合 test- 開頭的 pod 名稱。
+    不需要 {}，因為 jq 本來就是 JSON 解析工具。
 
 
 
 ### SECTION: SERVICES AND NETWORKING
-11. Please use the namespace nginx-depl-svcn for the following scenario.
+11. (**NetworlPolicy未設置port! 且需要透過有該label的pod進行驗證!**) Please use the namespace nginx-depl-svcn for the following scenario.
 
     Create a deployment with name nginx-ckad10-svcn using nginx image with 2 replicas. Also expose the deployment via ClusterIP service .i.e. nginx-ckad10-service-svcn on port 80. Use the label app=nginx-ckad for both resources.
 
@@ -769,6 +765,12 @@ First Attempt Score:  32%
     student-node ~ ➜  k get deploy -n nginx-depl-svcn 
     NAME                READY   UP-TO-DATE   AVAILABLE   AGE
     nginx-ckad10-svcn   0/2     2            0           2s
+
+    我的Deployment 沒有指定 container ports:
+    雖然containerPort 沒有顯式定義，nginx 預設是跑在 80，但最好還是要明確指定它，以確保服務正常運作。
+    - containerPort: 80  # ✅ 明確定義 port
+    ✅ 修正後，Deployment 會確保 nginx 監聽 80，搭配 Service 的 targetPort: 80，保證流量可以正常導入！
+
 
     student-node ~ ➜  k describe deploy -n nginx-depl-svcn nginx-ckad10-svcn 
     Name:                   nginx-ckad10-svcn
@@ -811,22 +813,28 @@ First Attempt Score:  32%
 
     student-node ~ ✖ vim netpol-ckad-allow-svcn.yaml
     student-node ~ ➜  cat netpol-ckad-allow-svcn.yaml
-    apiVersion: networking.k8s.io/v1
+    apiVersion: networking.k8s.io/v1 
     kind: NetworkPolicy
     metadata:
     name: netpol-ckad-allow-svcn
     namespace: nginx-depl-svcn
     spec:
-    podSelector:
-        matchLabels:
-        app: nginx-ckad    
+        podSelector:
+            matchLabels:
+            app: nginx-ckad    
     policyTypes:
     - Ingress
+    
     ingress:
     - from:
         - podSelector:
             matchLabels:
-            criteria: allow
+              criteria: allow
+
+    
+    **沒有設置ports!**
+    NetworkPolicy 預設會封鎖所有 ingress 流量（Kubernetes NetworkPolicy 的預設行為是 "Deny All"）。
+    **所以即使 criteria: allow 存取被允許，仍然沒有開放 port 80，導致 nginx Service 無法被存取**            
 
     student-node ~ ➜  kc netpol-ckad-allow-svcn.yaml
     networkpolicy.networking.k8s.io/netpol-ckad-allow-svcn created
@@ -843,10 +851,45 @@ First Attempt Score:  32%
     nginx-ckad10-svcn-8476cdff5c-9kfnz   1/1     Running   0          9m41s
     nginx-ckad10-svcn-8476cdff5c-t5qjg   1/1     Running   0          9m41s
 
+    (以下驗證方式錯誤!)
     student-node ~ ➜  k exec -it -n nginx-depl-svcn nginx-ckad10-svcn-8476cdff5c-9kfnz -- sh
-    /# curl 172.20.52.7:80
+    /# curl 172.20.52.7:80 可以curl <service-name>.<port>
     curl: (7) Failed to connect to 172.20.52.7 port 80 after 466 ms: Couldn't connect to server
     /#
+
+    你的測試方式
+    kubectl exec -it -n nginx-depl-svcn nginx-ckad10-svcn-8476cdff5c-9kfnz -- sh
+    /# curl 172.20.52.7:80  
+    
+    這裡的問題點在於：
+    你從 nginx-ckad10-svcn 本身發送請求給自己 (172.20.52.7:80)。
+    你的 NetworkPolicy 限制了只有帶 criteria=allow 標籤的 Pod 才能存取 nginx-ckad10-service-svcn。
+    而 nginx-ckad10-svcn 這個 Pod 並沒有 criteria=allow 標籤，因此它的流量被 NetworkPolicy 阻擋！
+        
+    正確的驗證方式
+    1️⃣ 建立一個符合 criteria=allow 的測試 Pod
+    你應該從一個符合 NetworkPolicy 規則的 Pod 測試，而不是從 nginx 自己測試。
+    kubectl run test-client --image=busybox -n nginx-depl-svcn --labels="criteria=allow" -- /bin/sh -c "sleep 3600"
+    這個 Pod 符合 criteria=allow，因此它可以正常存取 nginx。
+
+    **使用k run 建立debug pod, 需要有符合 criteria: allow 的 Pod**
+    即使你修正了上面的 NetworkPolicy 和 Deployment，你還需要有一個 Pod 符合 criteria: allow 才能存取 nginx！
+
+    🔹 ✅ 創建一個測試 Pod
+    kubectl run test-client --image=busybox -n nginx-depl-svcn --labels="criteria=allow" -- /bin/sh -c "slee
+   
+    OR: (建立debug pod)
+
+    kubectl run test-client --image=busybox -n nginx-depl-svcn --labels="criteria=allow" **--restart=Never --rm -it** -- sh
+    / # curl nginx-ckad10-service-svcn:80
+
+    ( 驗證完畢後，輸入 exit，Pod 會自動刪除，確保環境乾淨)
+
+    🔹 ✅ 進入測試 Pod
+    kubectl exec -it test-client -n nginx-depl-svcn -- sh
+    🔹 ✅ 嘗試 curl 測試
+    **curl nginx-ckad10-service-svcn:80**
+    如果你看到 nginx 預設頁面，代表 NetworkPolicy 設置正確
 
 
     Solution:
@@ -970,7 +1013,7 @@ First Attempt Score:  32%
 
 ### SECTION: APPLICATION ENVIRONMENT, CONFIGURATION and SECURITY
 
-16. Create a service account named ckad23-sa-aecs in the namespace ckad23-nssa-aecs.
+16. (正確) Create a service account named ckad23-sa-aecs in the namespace ckad23-nssa-aecs.
 
     Grant the service account get and list permissions to access all resources within the namespace using a Role named wide-access-aecs.
 
@@ -996,7 +1039,7 @@ First Attempt Score:  32%
     role.rbac.authorization.k8s.io/wide-access-aecs created     
 
 
-    student-node ~ ✖ kubectl create rolebinding wide-access-rb-aecs --role=wide-access-aecs  --group=system:serviceaccounts:ckad23-sa-aecs -n ckad23-nssa-aecs 
+    student-node ~ ✖ kubectl create rolebinding wide-access-rb-aecs --role=wide-access-aecs  **--group=system:serviceaccounts:ckad23-sa-aecs -n ckad23-nssa-aecs** 
     rolebinding.rbac.authorization.k8s.io/wide-access-rb-aecs created
 
     student-node ~ ➜  k get rolebindings.rbac.authorization.k8s.io -n ckad23-nssa-aecs 

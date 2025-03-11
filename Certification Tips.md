@@ -395,6 +395,9 @@ Use Ingress rules to expose applications
         :set tabstop=2 shiftwidth=2 expandtab
     这将确保 YAML 文件中的缩进使用 2 个空格，而不是 Tab。
 
+    
+
+
 3. Setting alias:
 
         alias k="kubectl"
@@ -425,16 +428,28 @@ Use Ingress rules to expose applications
 
     通過grep 快速查找以上有可能存放alias 配置的位置
 
+    echo 'alias kd="kubectl --dry-run=client"' >> ~/.bashrc
+    OR
+    alias kd="k --dry-run=client" >> ~/.bashrc
+    OR
+    vim ~/.bashrc
 
-    Tips tutor gave:
-    1) https://www.linkedin.com/pulse/my-ckad-exam-experience-atharva-chauthaiwale/
+    source ~/.bashrc # 建議執行source: 使更改生效 (Bash)，以避免tty 結束時，需重新設置alias kd
 
-    2) https://medium.com/@harioverhere/ckad-certified-kubernetes-application-developer-my-journey-3afb0901014
-
-        **Resist the urge to answer the questions sequentially.**
-
-    3) https://github.com/lucassha/CKAD-resources
-
+    controlplane:~$ echo 'alias kd="kubectl --dry-run=client"' >> ~/.bashrc
+    controlplane:~$ source ~/.bashrc 
+    controlplane:~$ alias 
+    alias egrep='egrep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias grep='grep --color=auto'
+    alias k='kubectl'
+    **alias kd='kubectl --dry-run=client'**
+    alias l='ls -CF'
+    alias la='ls -A'
+    alias ll='ls -alF'
+    alias ls='ls --color=auto'
+    controlplane:~$ **kd** run pod --image=busybox **-o yaml** > pod.yaml
+    controlplane:~$ vim pod.yaml 
 
 
 4. 官網文件找不到的終極大法:
@@ -581,7 +596,7 @@ Use Ingress rules to expose applications
 
     建立debug pod 來排查原因:
             
-    kubectl run debug-shell --rm -i -t --image=busybox --restart=Never --namespace=dvl1987 -- sh
+    kubectl run debug-shell **--rm** -i -t --image=busybox --restart=Never --namespace=dvl1987 -- sh
 
     進入容器 intit mode:
     controlplane ~ ✖ kubectl run debug-shell --rm -i -t --image=busybox --restart=Never --namespace=dvl1987 -- sh
@@ -715,3 +730,33 @@ Use Ingress rules to expose applications
     ✅ **高流量時段**，先更新 `Deployment`，稍後再手動重啟 Pod。
 
     你可以試試 **`kubectl replace -f redis-deploy.yaml`**，然後執行 `kubectl get pods` 看看 Pod 是否仍然保持不變！ 🚀
+
+
+
+
+Tips tutor gave:
+1) https://www.linkedin.com/pulse/my-ckad-exam-experience-atharva-chauthaiwale/
+
+2) https://medium.com/@harioverhere/ckad-certified-kubernetes-application-developer-my-journey-3afb0901014
+
+    **Resist the urge to answer the questions sequentially.**
+
+3) https://github.com/lucassha/CKAD-resources
+
+
+
+
+### 考試開始時先執行
+
+01. vim ~/.vimrc
+controlplane:~$ vim ~/.vimrc
+set expandtab
+set tabstop=2
+set shiftwidth=2
+
+02. vim ~/.bashrc
+alias kd="k --dry-run=client"
+alias kc="k create -f"
+alias ka="k apply -f"
+alias kr="k replace -f"
+source ~/.bashrc  # 每開啟一個新的terminal，只需要執行source ~/.bashrc ，便可以使用alias
